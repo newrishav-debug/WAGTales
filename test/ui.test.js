@@ -27,7 +27,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function page(w, scheme) {
     const p = await browser.newPage();
     await p.setViewport({ width: w, height: 900 });
-    await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+    await p.evaluateOnNewDocument(t => { try { localStorage.setItem('wagtales-theme', t); } catch (e) {} }, scheme);
     p.on('pageerror', e => errs.push(String(e)));
     p.on('console', m => { if (m.type() === 'error' && !/fonts/.test(m.text())) errs.push(m.text()); });
     p.on('dialog', d => d.accept());
@@ -80,14 +80,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const editBtn = async n => { const rows = await p.$$('#deals-box tbody tr'); for (const r of rows) { if ((await r.$eval('td', td => td.textContent)) === String(n)) return r.$('td.acts .btn'); } };
   await (await editBtn(5)).click();
   ok((await p.$eval('#d-txn', e => e.value)) === '100000000004, 100000000005', 'txn shown comma-separated');
-  ok((await p.$$eval('#deals-box tbody tr', trs => trs.map(t => t.cells[5].textContent))).includes('100000000004, 100000000005'), 'deals table shows both transfers');
+  ok((await p.$$eval('#deals-box tbody tr', trs => trs.map(t => t.cells[6].textContent))).includes('100000000004, 100000000005'), 'deals table shows both transfers');
   ok(!(await p.$eval('#d-delete', e => e.hidden)), 'delete shown when editing');
   await p.click('#p-add-deal [data-goto="deals"]');
 
   // mark deal 3 received
   const rows = await p.$$('#deals-box tbody tr');
   for (const r of rows) {
-    if ((await r.$eval('td', td => td.textContent)) === '3') { const b = await r.$$('td.acts .btn'); await b[1].click(); break; }
+    if ((await r.$eval('td', td => td.textContent)) === '3') { await (await r.$('td.mark .btn')).click(); break; }
   }
   await p.type('#x-logi', '0'); await p.click('#x-submit'); await p.waitForNetworkIdle(); await sleep(300);
   ok(/Deal #3 marked received/.test(await text('#toast')), 'mark received');
@@ -95,13 +95,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   // delete deal 6
   await (await editBtn(6)).click();
   ok((await text('#deal-title')) === 'Edit deal #6', 'editing deal 6: ' + await text('#deal-title'));
-  await p.click('#d-delete'); await p.waitForNetworkIdle(); await sleep(300);
+  await p.click('#d-delete'); await p.click('#del-yes'); await p.waitForNetworkIdle(); await sleep(300);
   ok(/Deal #6 deleted/.test(await text('#toast')), 'delete toast: ' + await text('#toast'));
   ok(!(await dealNos()).includes('6'), 'deal 6 gone');
 
   // a deal that feeds a reinvestment cannot be deleted
   await (await editBtn(1)).click();
-  await p.click('#d-delete'); await sleep(600);
+  await p.click('#d-delete'); await p.click('#del-yes'); await sleep(600);
   ok(/part of a reinvestment/.test(await text('#toast')), 'refusal shown');
   await p.click('#p-add-deal [data-goto="deals"]');
 
@@ -116,6 +116,24 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok(href === '/contracts/ARR-02%20contract%20-%20Jane%20Doe.pdf', 'contract link ' + href);
   const got = await p.evaluate(h => fetch(h).then(r => r.text()), href);
   ok(got === '%PDF-1.4 hello', 'contract served');
+  const docBtns = await p.$eval('#arr-box tbody tr:nth-child(2) td.doc', c => [...c.querySelectorAll('.btn')].map(b => b.textContent).join('|'));
+  ok(docBtns === 'Open|Replace', 'contract buttons: ' + docBtns);
+  await p.screenshot({ path: path.join(OUT, 'arrangements-contract.png'), fullPage: true });
+  const arrFit = await p.$eval('#arr-box', b => [b.scrollWidth, b.clientWidth]);
+  ok(arrFit[0] <= arrFit[1], 'arrangements fit at 1280 without scrolling: ' + arrFit.join(' / '));
+
+  // deleting from a row asks first, and Cancel or Escape change nothing
+  const arrDel = '#arr-box tbody tr:first-child .btn.del';
+  await p.click(arrDel);
+  ok(!(await p.$eval('#del-overlay', e => e.hidden)) && /Delete arrangement ARR-01/.test(await text('#del-title')), 'delete asks first');
+  await p.screenshot({ path: path.join(OUT, 'delete-dialog.png') });
+  await p.click('#del-no');
+  ok(await p.$eval('#del-overlay', e => e.hidden), 'Cancel closes the dialog');
+  await p.click(arrDel); await p.keyboard.press('Escape');
+  ok(await p.$eval('#del-overlay', e => e.hidden), 'Escape closes the dialog');
+  ok((await (await fetch(URL + 'api/data')).json()).arr.some(r => r[0] === 'ARR-01'), 'nothing deleted by cancelling');
+  await p.click(arrDel); await p.click('#del-yes'); await sleep(500);
+  ok(/still has deals/.test(await text('#toast')), 'a record in use is refused: ' + await text('#toast'));
 
   // backup dialog
   await p.click('#conn-btn');
@@ -137,9 +155,29 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // customers: statement for Sample covers both arrangements
   await p.click('.tab[data-tab="customers"]');
-  const custRows = await p.$$eval('#cust-box tbody tr', trs => trs.map(t => t.cells[1].textContent));
-  ok(custRows.join('|') === 'Sample Breeder|Jane Doe|Alex Kumar Example', 'customers: ' + custRows.join('|'));
-  await p.$eval('#cust-box tbody tr td.acts .btn', b => b.click());
+  const custMain = () => p.$$eval('#cust-box > table > tbody > tr:not(.cust-detail)', trs => trs.map(t => t.cells[2].textContent));
+  ok((await custMain()).join('|') === 'Sample Breeder|Jane Doe|Alex Kumar Example', 'customers: ' + (await custMain()).join('|'));
+  ok((await p.$$('#cust-box > table > thead th')).length === 10, 'customers table keeps all its columns');
+  const openRows = () => p.$$eval('#cust-box tr.cust-detail', trs => trs.filter(t => t.offsetParent !== null).length);
+  const expandBtn = '#cust-box > table > tbody > tr .btn.exp';
+  const expanded = () => p.$eval(expandBtn, b => b.getAttribute('aria-expanded'));
+  ok((await openRows()) === 0, 'customers start collapsed');
+  await p.click(expandBtn);
+  ok((await openRows()) === 1 && (await expanded()) === 'true', 'Expand opens the row');
+  const inl = await p.$eval('#cust-box tr.cust-detail .statement', e => e.textContent);
+  ok(/Statement of investments/.test(inl) && /ARR-01/.test(inl) && /100000000001/.test(inl) && /Outstanding/.test(inl), 'the row shows the statement');
+  const widths = await p.$eval('#cust-box', b => [b.querySelector(':scope > table').offsetWidth, b.querySelector('.statement').offsetWidth]);
+  ok(widths[0] === widths[1], 'statement uses the full table width: ' + widths.join(' / '));
+  await p.screenshot({ path: path.join(OUT, 'customer-expanded.png'), fullPage: true });
+  await p.$eval(expandBtn, b => b.click());
+  ok((await openRows()) === 0 && (await expanded()) === 'false', 'Collapse closes it again');
+  await p.click(expandBtn);
+  await p.click('.tab[data-tab="deals"]'); await p.click('.tab[data-tab="customers"]');
+  ok((await openRows()) === 1, 'stays expanded after changing tabs');
+  await p.setViewport({ width: 400, height: 900 });
+  await p.screenshot({ path: path.join(OUT, 'customer-expanded-400.png'), fullPage: true });
+  await p.setViewport({ width: 1280, height: 900 });
+  await p.click('#cust-box .cust-print .btn');
   await sleep(200);
   const st = await p.$eval('#st-box', e => e.textContent);
   ok(/ARR-01/.test(st) && /ARR-03 · 4-month recurring · litter/.test(st) && /Outstanding/.test(st), 'statement content');
@@ -174,10 +212,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await p.select('#f-ret', 'received'); await sleep(100);
   ok((await p.$$('#deals-box tbody tr')).length === 3, 'received filter');
   await p.select('#f-ret', '');
-  const dueTh = (await p.$$('#deals-box th'))[8];
+  const dueTh = (await p.$$('#deals-box th'))[9];
   await dueTh.click(); await dueTh.evaluate(e => e); await sleep(100);
-  await (await p.$$('#deals-box th'))[8].click(); await sleep(100);
-  const firstDue = await p.$eval('#deals-box tbody tr td:nth-child(9)', e => e.textContent);
+  await (await p.$$('#deals-box th'))[9].click(); await sleep(100);
+  const firstDue = await p.$eval('#deals-box tbody tr td:nth-child(10)', e => e.textContent);
   ok(firstDue === '30.11.2026', 'sorted by due, latest first: ' + firstDue);
 
   // reinvestment into a deal
@@ -209,6 +247,43 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   const changes = (await (await fetch(URL + 'api/history')).json()).history.map(h => h.message);
   ok(/^Restore to how it was after/.test(changes[0]) && changes.includes('Save the contract for ARR-02') && changes.includes('Delete deal #6') && changes.includes('Add customer CUS-04 (Test Kennel)'), 'changes recorded: ' + changes.slice(0, 5).join(' | '));
+
+  // the deal actions stay on screen even when the table has to scroll
+  await p.click('.tab[data-tab="deals"]');
+  const dealHeads = await p.$$eval('#deals-box th', ths => ths.map(t => t.textContent));
+  ok(dealHeads[2] === 'Status' && dealHeads[3] === 'Mark as received', 'mark received sits beside status: ' + dealHeads.slice(2, 4).join(' | '));
+  const dealFit = await p.$eval('#deals-box', b => { const r = b.getBoundingClientRect(), d = b.querySelector('tbody tr .btn.del').getBoundingClientRect(); return d.left >= r.left && d.right <= r.right; });
+  ok(dealFit, 'deal icons visible without scrolling');
+
+  // the page is dark until switched, and remembers the switch
+  const ctx = await browser.createBrowserContext();
+  const q = await ctx.newPage();
+  await q.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+  await q.goto(URL); await q.waitForNetworkIdle();
+  const theme = () => q.$eval('html', e => e.getAttribute('data-theme'));
+  const bg = () => q.$eval('body', e => getComputedStyle(e).backgroundColor);
+  ok((await theme()) === 'dark' && (await bg()) === 'rgb(13, 17, 23)', 'dark by default: ' + await bg());
+  await q.click('#theme-btn');
+  ok((await theme()) === 'light' && (await bg()) === 'rgb(245, 246, 248)', 'switches to light: ' + await bg());
+  await q.reload(); await q.waitForNetworkIdle();
+  ok((await theme()) === 'light', 'remembers light after reloading');
+  await q.click('#theme-btn');
+  ok((await theme()) === 'dark', 'switches back to dark');
+  await q.click('.tab[data-tab="customers"]');
+  const col = sel => q.$eval(sel, e => getComputedStyle(e).color);
+  ok((await col('#cust-box tbody td.c-total')) !== (await col('#cust-box tbody td.c-in')), 'amounts are coloured by meaning');
+  ok((await q.$$('#cust-box td.c-zero')).length > 0, 'a zero amount is muted');
+  await q.close(); await ctx.close();
+
+  // a row delete that is allowed
+  await p.click('.tab[data-tab="reinvest"]');
+  const before = (await (await fetch(URL + 'api/data')).json()).reinv.length;
+  await p.click('#reinv-box tbody tr:first-child .btn.del'); await p.click('#del-yes'); await p.waitForNetworkIdle(); await sleep(300);
+  ok((await (await fetch(URL + 'api/data')).json()).reinv.length === before - 1 && /Reinvestment deleted/.test(await text('#toast')), 'reinvestment deleted from its row');
+  for (const box of ['deals', 'arr', 'cust']) {
+    await p.click('.tab[data-tab="' + { deals: 'deals', arr: 'arrangements', cust: 'customers' }[box] + '"]');
+    ok((await p.$$('#' + box + '-box > table > tbody > tr:not(.cust-detail) .btn.edit')).length === (await p.$$('#' + box + '-box > table > tbody > tr:not(.cust-detail) .btn.del')).length && (await p.$$('#' + box + '-box .btn.del')).length > 0, box + ' rows have edit and delete icons');
+  }
 
   ok(errs.length === 0, 'page errors: ' + errs.join(' | '));
   await browser.close();

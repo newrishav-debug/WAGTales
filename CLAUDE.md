@@ -74,14 +74,16 @@ It can be switched on and off in the Backup dialog (`settings.json` `notify`). T
 - Tabs in workflow order: **Dashboard › Customers › Arrangements › Deals › Reinvestments › History**; each tab has its own add button.
 - New customer → New arrangement with them preselected → Add deal with it preselected → Dashboard.
 - Mark received requires a typed logistics amount (0 allowed) and a received date (defaults to today).
-- Edit and Delete exist for all record types.
-- Deals table: search (customer, deal #, notes, transaction), status and return filters, sortable columns (#, customer, date, invested, agreed, due).
-- Customers have a printable **Statement** (print CSS hides the app chrome; save as PDF from the print window).
+- Customer, arrangement, deal and reinvestment rows have edit and delete icons. Every delete goes through a confirmation dialog in the app.
+- Deals table: a **Mark as received** column beside Status (empty once received); search (customer, deal #, notes, transaction), status and return filters, sortable columns (#, customer, date, invested, agreed, due).
+- Customers tab: the expand icon shows the customer's statement under their row, at the table's full width. It stays open across refreshes until the page is reloaded, and its print button opens the printable **Statement** (print CSS hides the app chrome; save as PDF from the print window).
 - Projected cycles in Upcoming returns have an **Add deal** button that prefills from the last cycle.
 - The page auto-refreshes on focus and every 2 minutes, never while a form or dialog is open.
 - The header shows backup status and opens the Backup and reminders dialog.
 - Toasts don't block clicks (`pointer-events: none`).
-- Calm finance look: Public Sans, navy accent, received/expected/projected as dark/mid/light blue, light and dark themes, max width 1440px.
+- Calm finance look: Public Sans, navy accent, received/expected/projected as dark/mid/light blue, max width 1440px.
+- Dark by default, with a header switch to light that is remembered in `localStorage` (`wagtales-theme`).
+- Table colours mean something: blue (`c-in`) invested or agreed, green (`c-good`, `c-total`) received or total profit, amber (`c-warn`) still to come or logistics, muted (`c-zero`) for zero.
 
 ## Build, test, deploy
 ```bash

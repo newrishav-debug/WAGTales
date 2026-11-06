@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>body { margin: 0; } img { max-width: 100%; }</style>
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('wagtales-theme') === 'light' ? 'light' : 'dark');</script>
 <title>WAGTales Tracker</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E3A5F'/%3E%3Ctext x='16' y='22' font-family='Helvetica,Arial,sans-serif' font-size='17' font-weight='700' fill='white' text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,15 +33,6 @@
   --bad: #B42318; --bad-soft: #FDE7E5;
   --font: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius: 12px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0D1117; --surface: #151B23; --surface-2: #1A212B; --ink: #E8EDF3; --ink-2: #C3CCD7; --muted: #8C98A8; --line: #26303C; --grid: #1F2731;
-    --accent: #8FB3E8; --accent-ink: #0D1117; --accent-soft: #1C2A3D;
-    --r1: #86B6EF; --r2: #3987E5; --r3: #1C5CAB; --mark: #8494A8;
-    --good: #5CC795; --good-soft: #15302A; --warn: #E3A94F; --warn-soft: #362812; --bad: #FF8F86; --bad-soft: #3B1C1B;
-    color-scheme: dark;
-  }
 }
 :root[data-theme="dark"] {
   --bg: #0D1117; --surface: #151B23; --surface-2: #1A212B; --ink: #E8EDF3; --ink-2: #C3CCD7; --muted: #8C98A8; --line: #26303C; --grid: #1F2731;
@@ -74,6 +66,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn:disabled { opacity: 0.55; cursor: progress; }
 .btn.danger { color: var(--bad); margin-left: auto; }
 .btn.danger:hover { border-color: var(--bad); }
+.btn.icon { padding: 5px; display: inline-flex; vertical-align: middle; color: var(--ink-2); }
+.btn.icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn.icon.del:hover { color: var(--bad); border-color: var(--bad); }
+.btn.icon.exp { border-color: transparent; background: transparent; }
+.btn.icon.exp:hover { border-color: var(--line); }
+.btn.icon.exp[aria-expanded="true"] svg { transform: rotate(90deg); }
 .btn.backup { display: inline-flex; align-items: center; gap: 7px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--mark); flex: none; }
 .dot.ok { background: var(--good); }
@@ -184,9 +182,17 @@ details.tv .tablebox { margin-top: 8px; }
 .tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
-th { font-size: 12px; color: var(--muted); font-weight: 500; background: var(--surface-2); }
+th { font-size: 12px; color: var(--accent); font-weight: 600; background: var(--accent-soft); }
 tr:last-child td { border-bottom: 0; }
-tbody tr:hover td { background: var(--surface-2); }
+.tablebox > table > tbody > tr:nth-child(even):not(.cust-detail) > td,
+#cust-box > table > tbody > tr:nth-child(4n+3) > td { background: var(--surface-2); }
+.tablebox > table > tbody > tr:not(.cust-detail):hover > td { background: var(--accent-soft); }
+td.c-in { color: var(--r1); }
+td.c-good { color: var(--good); }
+td.c-warn { color: var(--warn); }
+td.c-zero { color: var(--muted); }
+td.c-total { color: var(--good); font-weight: 600; }
+td.c-id { color: var(--accent); font-weight: 600; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 td.note { white-space: normal; min-width: 200px; color: var(--muted); }
 .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
@@ -213,7 +219,25 @@ textarea { height: auto; padding: 9px 11px; resize: vertical; min-height: 68px; 
 input[readonly] { background: var(--surface-2); color: var(--muted); }
 td.acts { white-space: nowrap; }
 td.acts .btn + .btn { margin-left: 6px; }
-a.doclink { color: var(--accent); font-weight: 500; margin-right: 10px; }
+tr.cust-detail[hidden] { display: none; }
+tr.cust-detail > td { padding: 0; max-width: 0; white-space: normal; }
+.cust-st .statement { border: 0; border-radius: 0; padding: 20px; max-width: none; }
+.cust-print { display: flex; justify-content: flex-end; padding: 0 20px 16px; }
+@media (max-width: 900px) {
+  .cust-st { position: sticky; left: 0; width: calc(100vw - 34px); }
+}
+a.btn { display: inline-block; text-decoration: none; }
+td.doc { min-width: 150px; }
+#deals-box th, #deals-box td { padding-left: 8px; padding-right: 8px; }
+#deals-box td.note { min-width: 160px; }
+#deals-box th:last-child, #deals-box td:last-child { position: sticky; right: 0; border-left: 1px solid var(--line); }
+#deals-box th:last-child { background: var(--accent-soft); }
+#deals-box td:last-child { background: var(--surface); }
+#deals-box tbody tr:nth-child(even) td:last-child { background: var(--surface-2); }
+#deals-box tbody tr:hover td:last-child { background: var(--accent-soft); }
+#arr-box th, #arr-box td { padding-left: 8px; padding-right: 8px; }
+#arr-box th { white-space: normal; vertical-align: bottom; }
+#arr-box td:nth-child(2), #arr-box td:nth-child(3), #arr-box td:nth-child(11) { white-space: normal; min-width: 84px; }
 input[type="file"] { height: auto; padding: 8px 10px; }
 .hint { font-size: 12px; color: var(--muted); line-height: 1.35; }
 .preview { display: flex; flex-wrap: wrap; gap: 6px 24px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; color: var(--ink-2); }
@@ -265,6 +289,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
 .st-sum b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
 @media print {
   body { background: #fff !important; }
+  html, body { background: #fff !important; color-scheme: light; }
   .top, .tabs, .no-print, .toast, .tip, .banner, .overlay { display: none !important; }
   .wrap { padding: 0; max-width: none; }
   .statement { border: 0; padding: 0; max-width: none; }
@@ -292,7 +317,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
 <div class="wrap">
   <div class="top">
     <div class="brand"><span class="mark" aria-hidden="true">W</span><div><h1>WAGTales</h1><p>Investment tracker</p></div></div>
-    <div class="meta"><span id="updated">Not loaded yet</span><button class="btn small backup" id="conn-btn" type="button"><i class="dot" id="sync-dot"></i><span id="sync-text">Backup</span></button><button class="btn small" id="refresh" type="button">Refresh</button></div>
+    <div class="meta"><span id="updated">Not loaded yet</span><span id="theme-slot"></span><button class="btn small backup" id="conn-btn" type="button"><i class="dot" id="sync-dot"></i><span id="sync-text">Backup</span></button><button class="btn small" id="refresh" type="button">Refresh</button></div>
   </div>
 
   <div id="banner" class="banner" hidden></div>
@@ -311,12 +336,12 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   </section>
 
   <section class="panel" id="p-customers" hidden>
-    <div class="panel-head"><div><h2>Customers</h2><p>Everyone you fund, with their arrangements added up. Statement makes a summary to print or share.</p></div><button class="btn small" data-goto="add-cust" type="button">+ New customer</button></div>
+    <div class="panel-head"><div><h2>Customers</h2><p>Everyone you fund, with their arrangements added up. Expand shows a customer’s statement, to read or print.</p></div><button class="btn small" data-goto="add-cust" type="button">+ New customer</button></div>
     <div class="tablebox" id="cust-box"></div>
   </section>
 
   <section class="panel" id="p-deals" hidden>
-    <div class="panel-head"><div><h2>Deals</h2><p>Use Edit to change a deal, or Mark received when a return comes in.</p></div><button class="btn small" data-goto="add-deal" type="button">+ Add deal</button></div>
+    <div class="panel-head"><div><h2>Deals</h2><p>Use the pencil to change a deal, or Mark received when a return comes in.</p></div><button class="btn small" data-goto="add-deal" type="button">+ Add deal</button></div>
     <div class="filters" role="search">
       <input id="f-q" type="search" placeholder="Search customer, deal #, notes or transaction" aria-label="Search deals">
       <select id="f-status" aria-label="Status"><option value="">All statuses</option><option>Active</option><option>Closed</option></select>
@@ -418,6 +443,13 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
       <div class="actions"><button class="btn primary" type="submit" id="r-submit">Add reinvestment</button><button class="btn" type="button" data-goto="reinvest">Cancel</button><button class="btn danger" type="button" id="r-delete" hidden>Delete reinvestment</button></div>
     </form>
   </section>
+</div>
+
+<div class="overlay" id="del-overlay" hidden>
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="del-title" aria-describedby="del-text">
+    <div><h2 id="del-title">Delete</h2><p class="hint" id="del-text"></p></div>
+    <div class="actions"><button class="btn danger" type="button" id="del-yes">Delete</button><button class="btn" type="button" id="del-no">Cancel</button></div>
+  </div>
 </div>
 
 <div class="overlay" id="recv-overlay" hidden>
@@ -1062,8 +1094,24 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     t.appendChild(tb); box.appendChild(t);
   }
   function td(text, cls) { return el('td', cls || '', text); }
+  function amt(text, kind) { return td(text, 'n ' + (!text || text === '0' ? 'c-zero' : kind)); }
   function pill(text, kind) { return el('span', 'pill' + (kind ? ' ' + kind : ''), text); }
   function actBtn(label, fn) { var b = el('button', 'btn small', label); b.type = 'button'; b.addEventListener('click', fn); return b; }
+
+  var ICONS = {
+    edit: ['M12 20h9', 'M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'],
+    del: ['M3 6h18', 'M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6', 'M10 11v6', 'M14 11v6', 'M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'],
+    exp: ['M9 18l6-6-6-6'],
+    moon: ['M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'],
+    sun: ['M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z', 'M12 1v2', 'M12 21v2', 'M4.2 4.2l1.4 1.4', 'M18.4 18.4l1.4 1.4', 'M1 12h2', 'M21 12h2', 'M4.2 19.8l1.4-1.4', 'M18.4 5.6l1.4-1.4']
+  };
+  function iconBtn(kind, label, fn) {
+    var b = el('button', 'btn icon ' + kind); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label);
+    var s = sv('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, b);
+    ICONS[kind].forEach(function (d) { sv('path', { d: d }, s); });
+    b.addEventListener('click', fn);
+    return b;
+  }
 
   var dealSort = { key: 'n', dir: 1 };
   var DEAL_SORTS = {
@@ -1091,33 +1139,38 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     });
     var rows = list.map(function (o) {
       var tr = el('tr');
-      tr.appendChild(td(cellVal(o, 0), 'n'));
+      tr.appendChild(td(cellVal(o, 0), 'n c-id'));
       tr.appendChild(td(cellVal(o, 2) || cellVal(o, 1)));
       var st = el('td'); st.appendChild(pill(cellVal(o, 3) || 'Active', cellVal(o, 3) === 'Closed' ? 'closed' : ''));
       if (cellVal(o, 10) === 'No') { var ns = pill('Not sent', 'warn'); ns.style.marginLeft = '6px'; st.appendChild(ns); }
       tr.appendChild(st);
+      var rc = el('td'), state = returnState(o, today), mk = el('td', 'mark');
+      if (state !== 'received') mk.appendChild(actBtn('Mark received', function () { openRecv(o); }));
+      tr.appendChild(mk);
       tr.appendChild(td(dateTxt(cellVal(o, 4)), 'n'));
-      tr.appendChild(td(cellVal(o, 9), 'n'));
+      tr.appendChild(amt(cellVal(o, 9), 'c-in'));
       tr.appendChild(td(txnText(cellVal(o, 11)), 'txn'));
-      tr.appendChild(td(cellVal(o, 13), 'n'));
+      tr.appendChild(amt(cellVal(o, 13), 'c-in'));
       tr.appendChild(td(cellVal(o, 12)));
       tr.appendChild(td(dateTxt(cellVal(o, 14)) || 'TBD', 'n'));
-      var rc = el('td'), state = returnState(o, today);
       if (state === 'received') rc.appendChild(pill(cellVal(o, 20) ? 'Received ' + cellVal(o, 20).slice(0, 5) : 'Received', 'good'));
       else if (state === 'overdue') rc.appendChild(pill('Overdue', 'bad'));
       else rc.appendChild(pill('Waiting', 'warn'));
       tr.appendChild(rc);
-      tr.appendChild(td(cellVal(o, 15), 'n'));
-      tr.appendChild(td(cellVal(o, 16), 'n'));
+      tr.appendChild(amt(cellVal(o, 15), 'c-warn'));
+      tr.appendChild(amt(cellVal(o, 16), 'c-good'));
       tr.appendChild(td(cellVal(o, 19) || cellVal(o, 18), 'note'));
       var act = el('td', 'acts');
-      act.appendChild(actBtn('Edit', function () { startEditDeal(o); }));
-      if (state !== 'received') act.appendChild(actBtn('Mark received', function () { openRecv(o); }));
+      var dealNo = cellVal(o, 0);
+      act.appendChild(iconBtn('edit', 'Edit deal #' + dealNo, function () { startEditDeal(o); }));
+      act.appendChild(iconBtn('del', 'Delete deal #' + dealNo, function () {
+        delRow('Delete deal #' + dealNo, 'It is removed from the tracker.', function () { return backend.deleteDeal(o.row, dealNo); }, 'Deal #' + dealNo + ' deleted.');
+      }));
       tr.appendChild(act);
       return tr;
     });
     $('f-count').textContent = list.length === data.deals.length ? '' : list.length + ' of ' + data.deals.length + ' deals';
-    var heads = [{ t: '#', num: 1, key: 'n' }, { t: 'Customer', key: 'cust' }, { t: 'Status' }, { t: 'Date', num: 1, key: 'date' }, { t: 'Invested', num: 1, key: 'inv' }, { t: 'Transaction no.' }, { t: 'Agreed return', num: 1, key: 'agreed' }, { t: 'Return type' }, { t: 'Due', num: 1, key: 'due' }, { t: 'Return' }, { t: 'Logistics', num: 1 }, { t: 'Actual', num: 1 }, { t: 'Notes / check' }, { t: '' }];
+    var heads = [{ t: '#', num: 1, key: 'n' }, { t: 'Customer', key: 'cust' }, { t: 'Status' }, { t: 'Mark as received' }, { t: 'Date', num: 1, key: 'date' }, { t: 'Invested', num: 1, key: 'inv' }, { t: 'Transaction no.' }, { t: 'Agreed return', num: 1, key: 'agreed' }, { t: 'Return type' }, { t: 'Due', num: 1, key: 'due' }, { t: 'Return' }, { t: 'Logistics', num: 1 }, { t: 'Actual', num: 1 }, { t: 'Notes / check' }, { t: '' }];
     table($('deals-box'), heads, rows,
       !loadedOnce ? 'Loading.' : data.deals.length ? 'No deals match. Clear the search or the filters.' : 'No deals yet. Use + Add deal to enter the first one.');
     $('deals-box').querySelectorAll('th').forEach(function (th, i) {
@@ -1139,25 +1192,41 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     var mode = cellVal(o, 13) || 'latest';
     return mode === 'none' ? 'None' : mode === 'fixed' ? cellVal(o, 14) + ' a cycle' : 'Latest deal';
   }
+  var custOpen = {};  // kept here so an expanded customer stays open when the page refreshes
   function renderCust() {
     var m = loadedOnce ? model() : null;
-    var rows = (m ? m.custs : []).map(function (c) {
-      var tr = el('tr'), n = el('td');
-      tr.appendChild(td(c.id));
+    var rows = [];
+    (m ? m.custs : []).forEach(function (c) {
+      var tr = el('tr'), n = el('td'), ec = el('td');
+      var info = el('tr', 'cust-detail'), cell = el('td'), wrap = el('div', 'cust-st'), box = el('div', 'statement');
+      var btn = iconBtn('exp', 'Expand', function () { custOpen[c.id] = !custOpen[c.id]; show(); });
+      function show() {
+        var o = !!custOpen[c.id], label = (o ? 'Collapse statement for ' : 'Expand statement for ') + c.name;
+        info.hidden = !o; btn.title = label; btn.setAttribute('aria-label', label); btn.setAttribute('aria-expanded', o ? 'true' : 'false');
+        if (o) fillStatement(box, c);
+      }
+      ec.appendChild(btn); tr.appendChild(ec);
+      tr.appendChild(td(c.id, 'c-id'));
       n.appendChild(el('b', 'an', c.name));
-      var extra = [c.phone, c.notes].filter(Boolean).join(' \u00b7 ');
+      var extra = [c.phone, c.notes].filter(Boolean).join(' · ');
       if (extra) { var ex = el('span', 'as', extra); ex.style.whiteSpace = 'normal'; ex.style.maxWidth = '320px'; n.appendChild(ex); }
       tr.appendChild(n);
       tr.appendChild(td(String(c.arrs.length), 'n')); tr.appendChild(td(String(c.deals), 'n'));
-      tr.appendChild(td(fmt(c.capital), 'n')); tr.appendChild(td(fmt(c.received), 'n')); tr.appendChild(td(fmt(c.toCome), 'n')); tr.appendChild(td(fmt(c.total), 'n'));
+      tr.appendChild(amt(fmt(c.capital), 'c-in')); tr.appendChild(amt(fmt(c.received), 'c-good')); tr.appendChild(amt(fmt(c.toCome), 'c-warn')); tr.appendChild(amt(fmt(c.total), 'c-total'));
       var act = el('td', 'acts');
-      act.appendChild(actBtn('Statement', function () { showStatement(c.id); }));
       act.appendChild(actBtn('+ Arrangement', function () { startAddArr(c.id); }));
-      act.appendChild(actBtn('Edit', function () { startEditCust(c.o); }));
+      act.appendChild(iconBtn('edit', 'Edit ' + c.name, function () { startEditCust(c.o); }));
+      act.appendChild(iconBtn('del', 'Delete ' + c.name, function () {
+        delRow('Delete ' + c.name, 'They are removed from the tracker.', function () { return api('deleteCustomer', { row: c.o.row, orig: c.id }); }, c.name + ' deleted.');
+      }));
       tr.appendChild(act);
-      return tr;
+      var print = el('div', 'cust-print'); print.appendChild(actBtn('Print or save as PDF', function () { showStatement(c.id); }));
+      wrap.appendChild(box); wrap.appendChild(print);
+      cell.colSpan = 10; cell.appendChild(wrap); info.appendChild(cell);
+      show();
+      rows.push(tr, info);
     });
-    table($('cust-box'), [{ t: 'ID' }, { t: 'Customer' }, { t: 'Arrangements', num: 1 }, { t: 'Deals', num: 1 }, { t: 'Capital', num: 1 }, { t: 'Profit received', num: 1 }, { t: 'Profit to come', num: 1 }, { t: 'Total profit', num: 1 }, { t: '' }], rows,
+    table($('cust-box'), [{ t: '' }, { t: 'ID' }, { t: 'Customer' }, { t: 'Arrangements', num: 1 }, { t: 'Deals', num: 1 }, { t: 'Capital', num: 1 }, { t: 'Profit received', num: 1 }, { t: 'Profit to come', num: 1 }, { t: 'Total profit', num: 1 }, { t: '' }], rows,
       loadedOnce ? 'No customers yet. Use + New customer to add the first one.' : 'Loading.');
   }
 
@@ -1165,13 +1234,22 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     var nums = [3, 4, 5, 6, 7, 8, 9];
     var rows = data.arr.map(function (o) {
       var tr = el('tr');
-      for (var i = 0; i < 10; i++) tr.appendChild(td(i === 4 || i === 5 ? dateTxt(cellVal(o, i)) : cellVal(o, i), nums.indexOf(i) >= 0 ? 'n' : ''));
+      var kinds = { 7: 'c-in', 8: 'c-good', 9: 'c-warn' };
+      for (var i = 0; i < 10; i++) {
+        if (kinds[i]) tr.appendChild(amt(cellVal(o, i), kinds[i]));
+        else tr.appendChild(td(i === 4 || i === 5 ? dateTxt(cellVal(o, i)) : cellVal(o, i), i === 0 ? 'c-id' : nums.indexOf(i) >= 0 ? 'n' : ''));
+      }
       tr.appendChild(td(projText(o)));
-      var link = cellVal(o, 10).trim(), cc = el('td', 'acts');
-      if (/^(https:\/\/|\/contracts\/)/.test(link)) { var a = el('a', 'doclink', 'Open'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; cc.appendChild(a); }
+      var link = cellVal(o, 10).trim(), cc = el('td', 'acts doc'), arrId = cellVal(o, 0);
+      if (/^\/contracts\//.test(link)) { var a = el('a', 'btn small doclink', 'Open'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; cc.appendChild(a); }
       cc.appendChild(actBtn(link ? 'Replace' : 'Upload', function () { pickContract(o); }));
       tr.appendChild(cc);
-      var act = el('td', 'acts'); act.appendChild(actBtn('Edit', function () { startEditArr(o); })); tr.appendChild(act);
+      var act = el('td', 'acts');
+      act.appendChild(iconBtn('edit', 'Edit ' + arrId, function () { startEditArr(o); }));
+      act.appendChild(iconBtn('del', 'Delete ' + arrId, function () {
+        delRow('Delete arrangement ' + arrId, 'It is removed from the tracker.', function () { return backend.deleteArrangement(o.row, arrId); }, 'Arrangement ' + arrId + ' deleted.');
+      }));
+      tr.appendChild(act);
       return tr;
     });
     table($('arr-box'), [{ t: 'ID' }, { t: 'Customer' }, { t: 'Type' }, { t: 'Term', num: 1 }, { t: 'Start', num: 1 }, { t: 'End', num: 1 }, { t: 'Deals', num: 1 }, { t: 'Agreed return', num: 1 }, { t: 'Received', num: 1 }, { t: 'Outstanding', num: 1 }, { t: 'Projection' }, { t: 'Contract' }, { t: '' }], rows,
@@ -1181,8 +1259,13 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   function renderReinv() {
     var rows = data.reinv.map(function (o) {
       var tr = el('tr');
-      for (var i = 0; i < 7; i++) tr.appendChild(td(i === 0 || i === 4 ? dateTxt(cellVal(o, i)) : cellVal(o, i), i === 2 || i === 0 || i === 4 ? 'n' : (i === 6 ? 'note' : '')));
-      var act = el('td', 'acts'); act.appendChild(actBtn('Edit', function () { startEditReinv(o); })); tr.appendChild(act);
+      for (var i = 0; i < 7; i++) tr.appendChild(i === 2 ? amt(cellVal(o, i), 'c-good') : td(i === 0 || i === 4 ? dateTxt(cellVal(o, i)) : cellVal(o, i), i === 0 || i === 4 ? 'n' : (i === 6 ? 'note' : '')));
+      var act = el('td', 'acts');
+      act.appendChild(iconBtn('edit', 'Edit this reinvestment', function () { startEditReinv(o); }));
+      act.appendChild(iconBtn('del', 'Delete this reinvestment', function () {
+        delRow('Delete this reinvestment', 'It is removed from the tracker.', function () { return backend.deleteReinvestment(o.row, { date: cellVal(o, 0), amount: cellVal(o, 2) }); }, 'Reinvestment deleted.');
+      }));
+      tr.appendChild(act);
       return tr;
     });
     table($('reinv-box'), [{ t: 'Date', num: 1 }, { t: 'Source deal #' }, { t: 'Amount', num: 1 }, { t: 'Destination' }, { t: 'Expected return', num: 1 }, { t: 'Received' }, { t: 'Notes' }, { t: '' }], rows,
@@ -1232,7 +1315,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
      but never while a form or dialog is open, so nothing you are typing is disturbed */
   function autoRefresh() {
     if (document.hidden || busy || !loadedOnce) return;
-    if (['p-add-deal', 'p-add-arr', 'p-add-reinv', 'p-add-cust'].some(function (id) { return !$(id).hidden; }) || !$('recv-overlay').hidden || !$('conn-overlay').hidden) return;
+    if (['p-add-deal', 'p-add-arr', 'p-add-reinv', 'p-add-cust'].some(function (id) { return !$(id).hidden; }) || !$('recv-overlay').hidden || !$('conn-overlay').hidden || !$('del-overlay').hidden) return;
     if (Date.now() - lastLoad < 60000) return;
     load();
   }
@@ -1537,11 +1620,35 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   /* ---------- start ---------- */
   $('d-date').value = isoToday(); $('r-date').value = isoToday();
   /* ---------- delete ---------- */
+  var delYes = null, delBack = null;
+  function askDelete(title, text, yes) {
+    delYes = yes; delBack = document.activeElement;
+    $('del-title').textContent = title; $('del-text').textContent = text + ' You can undo this from the History tab.';
+    $('del-overlay').hidden = false; $('del-no').focus();
+  }
+  function closeDelete() {
+    $('del-overlay').hidden = true; delYes = null;
+    if (delBack && delBack.isConnected) delBack.focus();
+  }
+  $('del-no').addEventListener('click', closeDelete);
+  $('del-yes').addEventListener('click', function () { var yes = delYes; closeDelete(); if (yes) yes(); });
+  $('del-overlay').addEventListener('click', function (e) { if (e.target === $('del-overlay')) closeDelete(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('del-overlay').hidden) closeDelete(); });
   function delWith(btn, label, question, run, done) {
-    if (busy || !window.confirm(question)) return;
-    setBusy(btn, true, label); btn.textContent = 'Deleting\u2026';
-    run().then(function () { setBusy(btn, false, label); done(); return load(); })
-      .catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+    if (busy) return;
+    askDelete(label + '?', question, function () {
+      setBusy(btn, true, label); btn.textContent = 'Deleting\u2026';
+      run().then(function () { setBusy(btn, false, label); done(); return load(); })
+        .catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+    });
+  }
+  function delRow(label, question, run, doneText) {
+    if (busy) return;
+    askDelete(label + '?', question, function () {
+      busy = true;
+      run().then(function () { busy = false; toast(doneText); return load(); })
+        .catch(function (err) { busy = false; toast(errText(err, true), true); });
+    });
   }
   $('d-delete').addEventListener('click', function () {
     var ed = editDeal; if (!ed) return;
@@ -1670,6 +1777,11 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     var m = model(), c = m.custs.filter(function (x) { return x.id === id; })[0], box = $('st-box');
     box.textContent = '';
     if (!c) { box.appendChild(el('div', 'empty', 'That customer was not found.')); if (!keep) go('statement'); return; }
+    fillStatement(box, c);
+    if (!keep) go('statement');
+  }
+  function fillStatement(box, c) {
+    box.textContent = '';
     var head = el('div', 'st-head'), l = el('div'), r = el('div', 'r');
     l.appendChild(el('h2', '', c.name)); l.appendChild(el('p', 'note', 'Statement of investments' + (c.phone ? ' \u00b7 ' + c.phone : '')));
     r.appendChild(el('p', 'note', 'WAGTales')); r.appendChild(el('p', 'note', 'As of ' + fmtDMY(today0())));
@@ -1684,8 +1796,8 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
       th.appendChild(hr); t.appendChild(th);
       a.deals.forEach(function (d) {
         var paid = d.actual != null ? d.actual : d.agreed, tr = el('tr');
-        [[String(d.n), 'n'], [d.date ? fmtDMY(d.date) : '', 'n'], [fmt(d.inv), 'n'], [d.sent ? txnText(d.txn) : 'Not sent yet', 'txn'], [d.rtype, ''], [fmt(d.agreed), 'n'], [d.due ? fmtDMY(d.due) : 'To be agreed', 'n'],
-          [d.recv ? 'Received' + (d.rdate ? ' ' + fmtDMY(d.rdate) : '') : 'Outstanding', ''], [d.recv && d.logi != null ? fmt(d.logi) : '', 'n'], [d.recv ? fmt(paid) : '', 'n']]
+        [[String(d.n), 'n'], [d.date ? fmtDMY(d.date) : '', 'n'], [fmt(d.inv), 'n c-in'], [d.sent ? txnText(d.txn) : 'Not sent yet', 'txn'], [d.rtype, ''], [fmt(d.agreed), 'n c-in'], [d.due ? fmtDMY(d.due) : 'To be agreed', 'n'],
+          [d.recv ? 'Received' + (d.rdate ? ' ' + fmtDMY(d.rdate) : '') : 'Outstanding', d.recv ? 'c-good' : 'c-warn'], [d.recv && d.logi != null ? fmt(d.logi) : '', 'n'], [d.recv ? fmt(paid) : '', 'n c-good']]
           .forEach(function (v) { tr.appendChild(td(v[0], v[1])); });
         tbody.appendChild(tr);
         agreed += d.agreed; if (d.recv) got += paid; else open += d.agreed;
@@ -1698,7 +1810,6 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     });
     box.appendChild(sum); box.appendChild(body);
     box.appendChild(el('p', 'note', 'Amounts in rupees. Amounts received are after logistics.'));
-    if (!keep) go('statement');
   }
   $('st-print').addEventListener('click', function () { window.print(); });
 
@@ -1735,6 +1846,21 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
       toast(on ? 'Mac reminders are on.' : 'Mac reminders are off.');
     }).catch(function (err) { $('rem-on').checked = !on; toast(errText(err, true), true); });
   });
+
+  /* ---------- light and dark ---------- */
+  function showThemeBtn() {
+    var dark = document.documentElement.getAttribute('data-theme') !== 'light', slot = $('theme-slot');
+    slot.textContent = '';
+    var b = iconBtn(dark ? 'sun' : 'moon', dark ? 'Switch to light mode' : 'Switch to dark mode', function () {
+      var next = dark ? 'light' : 'dark';
+      localStorage.setItem('wagtales-theme', next);
+      document.documentElement.setAttribute('data-theme', next);
+      showThemeBtn(); $('theme-slot').firstChild.focus();
+      if (!$('p-overview').hidden) drawCharts();
+    });
+    b.id = 'theme-btn'; slot.appendChild(b);
+  }
+  showThemeBtn();
 
   renderAll();
   load();
