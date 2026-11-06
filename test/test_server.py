@@ -1,4 +1,4 @@
-"""Tests for app/server.py: the CSV store, the page's API, history, reminders and the Google Sheet backup.
+"""Tests for app/server.py: the database, the page's API, history, reminders and the backup folder.
 
     python3 test/test_server.py
 """
@@ -8,21 +8,21 @@ import http.client
 import json
 import os
 import shutil
-import subprocess
+import sqlite3
 import sys
 import tempfile
 import threading
 import unittest
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'app'))
 import server  # noqa: E402
 
-with open(os.path.join(HERE, 'fixtures', 'sheet-2026-10-21.json'), encoding='utf-8') as f:
-    SHEET = json.load(f)  # a sample sheet, formula columns included
-V1_DATA = os.path.join(HERE, 'fixtures', 'v1-data')  # the CSVs as the first version of the app wrote them
-WIDTH = {'arr': 11, 'deals': 20, 'reinv': 7}  # the columns the sheet had on 21.10.2026
+with open(os.path.join(HERE, 'fixtures', 'sample-data.json'), encoding='utf-8') as f:
+    SAMPLE = json.load(f)
+with open(os.path.join(HERE, 'fixtures', 'expected-view.json'), encoding='utf-8') as f:
+    EXPECTED = json.load(f)  # the worked-out columns for the sample data
+WIDTH = {'arr': 11, 'deals': 20, 'reinv': 7}  # the columns the expected view has
 
 
 def padded(tabs):
@@ -30,32 +30,37 @@ def padded(tabs):
 
 
 def original_columns(view):
-    """the view cut back to the tabs and columns the sheet had, to compare with the fixture"""
     return {k: [r[:WIDTH[k]] for r in view[k]] for k in WIDTH}
 
 
-def git(root, *args):
-    return subprocess.run(['git', '-C', root] + list(args), capture_output=True, text=True).stdout.strip()
+DEAL = {'n': 6, 'arr': 'ARR-01', 'status': 'Active', 'date': '2026-11-08', 'mrp': 705060, 'sell': 545355,
+        'dist': 474849, 'inv': 474849, 'sent': 'No', 'txn': '00123456', 'rtype': 'Profit Only', 'due': '2026-12-07',
+        'notes': 'Cycle 3 of 6.'}
+EDIT4 = dict(DEAL, row=5, orig='4', n=4, arr='ARR-03', date='2026-10-04', mrp=577200, sell=432900, dist=375180,
+             inv=375180, sent='Yes', txn='100000000003', due='2026-11-04', logi='', recv='No', notes='Sent.')
 
 
 class Base(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix='wagtales-test-')
         self.store = server.Store(self.dir)
-        self.store.seed(server.from_sheet(SHEET), 'Import')
+        self.store.seed(SAMPLE, 'Import')
         self.backup = server.Backup(self.store, self.dir, delay=0)
 
     def tearDown(self):
+        self.store.db.close()
         shutil.rmtree(self.dir, ignore_errors=True)
+
+    def last_change(self):
+        return self.store.history()[0]['message']
 
     def view(self):
         return server.display(server.build(self.store.snapshot()))
 
 
 class StoreTests(Base):
-    def test_view_matches_the_sheet_formulas(self):
-        view = server.display(server.build(self.store.snapshot(), for_sheet=True))
-        self.assertEqual(original_columns(view), padded(SHEET))
+    def test_view_matches_the_expected_figures(self):
+        self.assertEqual(original_columns(self.view()), padded(EXPECTED))
 
     def test_customers_come_from_the_arrangement_names(self):
         self.assertEqual([(c['id'], c['name']) for c in self.store.load('cust')],
@@ -72,25 +77,16 @@ class StoreTests(Base):
         self.assertEqual((r['destination_deal_no'], r['destination']), ('4', ''))
         self.assertEqual(self.view()['reinv'][1][3], 'Deal #4, Sample Breeder (litter)')
 
-    def test_csv_holds_inputs_only_with_iso_dates(self):
-        with open(os.path.join(self.dir, 'deals.csv'), encoding='utf-8') as f:
-            text = f.read()
-        self.assertTrue(text.startswith('deal_no,arrangement_id,status,investment_date,mrp,'))
+    def test_database_holds_inputs_only_with_iso_dates(self):
+        rows = self.store.db.execute('SELECT * FROM deals ORDER BY rowid').fetchall()
+        text = json.dumps(rows, ensure_ascii=False)
         self.assertIn('2026-08-28', text)
         self.assertNotIn('28.08.2026', text)
         self.assertNotIn('70,506', text)  # profit is worked out, not stored
-        self.assertIn('"100000000004\n100000000005"', text)
+        self.assertIn('100000000004\n100000000005', rows[4])
 
-    def test_page_links_local_contracts_and_drive_links(self):
-        arr = server.build(self.store.snapshot())['arr']
-        self.assertTrue(arr[0][10].startswith('https://drive.google.com/'))
-        self.assertEqual(arr[1][10], '')
-
-    def test_sheet_round_trip(self):
-        # what the backup writes can be read back into the same data
-        mirror = server.mirror(self.store.snapshot())
-        values = {k: [t['head']] + server.display({k: t['rows']})[k][1:] for k, t in mirror.items()}
-        self.assertEqual(server.from_sheet(values), self.store.snapshot())
+    def test_database_file_is_private(self):
+        self.assertEqual(os.stat(self.store.path).st_mode & 0o777, 0o600)
 
     def test_edate_clamps_to_month_end(self):
         self.assertEqual(server.edate('2026-08-31', 6), '2027-02-28')
@@ -98,58 +94,31 @@ class StoreTests(Base):
 
     def test_import_refuses_a_folder_with_data(self):
         with self.assertRaises(SystemExit):
-            self.store.seed(server.from_sheet(SHEET), 'Again')
+            self.store.seed(SAMPLE, 'Again')
 
-    def test_wrong_csv_columns_stop_the_app(self):
-        with open(os.path.join(self.dir, 'reinvestments.csv'), 'w') as f:
-            f.write('a,b\n')
+    def test_unknown_database_version_stops_the_app(self):
+        self.store.db.execute('PRAGMA user_version = 99')
         with self.assertRaises(SystemExit):
             server.Store(self.dir)
+        self.store.db.execute('PRAGMA user_version = %d' % server.DB_VERSION)
 
-    def test_every_change_is_committed(self):
-        before = int(git(self.dir, 'rev-list', '--count', 'HEAD'))
+    def test_every_change_is_recorded(self):
+        before = len(self.store.history())
         self.store.act('markReceived', {'row': 4, 'deal': '3', 'logistics': 0, 'date': '2026-11-06'})
-        self.assertEqual(int(git(self.dir, 'rev-list', '--count', 'HEAD')), before + 1)
-        self.assertEqual(git(self.dir, 'log', '-1', '--format=%s'), 'Mark deal #3 received')
+        self.assertEqual(len(self.store.history()), before + 1)
+        self.assertEqual(self.last_change(), 'Mark deal #3 received')
 
+    def test_a_refused_change_saves_nothing(self):
+        before = self.store.snapshot()
+        with self.assertRaises(server.Refused):
+            self.store.act('addDeal', dict(DEAL, n=1))
+        self.assertEqual(self.store.snapshot(), before)
 
-class UpgradeTests(unittest.TestCase):
-    """the first version's CSV files are moved to the current columns on start"""
-
-    def setUp(self):
-        self.dir = tempfile.mkdtemp(prefix='wagtales-upgrade-')
-        for f in os.listdir(V1_DATA):
-            shutil.copy(os.path.join(V1_DATA, f), self.dir)
-        old = server.Store.__new__(server.Store)  # a v1 history to upgrade
-        old.root = self.dir
-        old._git('init', '-q')
-        old._git('config', 'user.name', 't')
-        old._git('config', 'user.email', 't@t')
-        old.commit('Import from the Google Sheet')
-
-    def tearDown(self):
-        shutil.rmtree(self.dir, ignore_errors=True)
-
-    def test_upgrade(self):
-        store = server.Store(self.dir)
-        self.assertEqual(git(self.dir, 'log', '-1', '--format=%s'), server.DATA_FORMAT + 'customers, received dates and linked reinvestments')
-        self.assertEqual(len(store.load('cust')), 3)
-        view = server.display(server.build(store.snapshot(), for_sheet=True))
-        self.assertEqual(original_columns(view), padded(SHEET))
-        self.assertEqual(store.load('arr')[0]['projection'], 'latest')
-        # starting again changes nothing
-        server.Store(self.dir)
-        self.assertEqual(git(self.dir, 'rev-list', '--count', 'HEAD'), '2')
-        # history cannot go back past the format change
-        hist = store.history()
-        self.assertEqual([h['restorable'] for h in hist], [False, False])
-
-
-DEAL = {'n': 6, 'arr': 'ARR-01', 'status': 'Active', 'date': '2026-11-08', 'mrp': 705060, 'sell': 545355,
-        'dist': 474849, 'inv': 474849, 'sent': 'No', 'txn': '00123456', 'rtype': 'Profit Only', 'due': '2026-12-07',
-        'notes': 'Cycle 3 of 6.'}
-EDIT4 = dict(DEAL, row=5, orig='4', n=4, arr='ARR-03', date='2026-10-04', mrp=577200, sell=432900, dist=375180,
-             inv=375180, sent='Yes', txn='100000000003', due='2026-11-04', logi='', recv='No', notes='Sent.')
+    def test_a_save_that_changes_nothing_is_not_recorded(self):
+        before = len(self.store.history())
+        with self.store.lock, self.store.db:
+            self.store._record('No change')
+        self.assertEqual(len(self.store.history()), before)
 
 
 class HttpTests(Base):
@@ -195,14 +164,14 @@ class HttpTests(Base):
         self.assertEqual((len(d['arr'][0]), len(d['deals'][0]), len(d['reinv'][0])), (15, 21, 8))
         self.assertEqual(d['sync']['state'], 'off')
         self.assertEqual(d['reminders'], {'on': True})
-        self.assertEqual(self.req('GET', '/apps-script.gs')[0], 200)
+        self.assertEqual(self.req('GET', '/apps-script.gs')[0], 404)
 
     def test_other_sites_are_refused(self):
         self.assertEqual(self.req('POST', '/api', json.dumps({'action': 'addDeal'}))[0], 403)  # no header
         self.assertEqual(self.req('GET', '/api/data', headers={'Host': 'evil.example:8765'})[0], 403)
         status, _ = self.req('POST', '/api', '{}', {'X-WagTales': '1', 'Host': 'evil.example'})
         self.assertEqual(status, 403)
-        self.assertEqual(self.req('GET', '/contracts/..%2Fdeals.csv')[0], 404)
+        self.assertEqual(self.req('GET', '/contracts/..%2Fwagtales.db')[0], 404)
 
     def test_add_deal(self):
         r = self.post('addDeal', **DEAL)
@@ -230,7 +199,7 @@ class HttpTests(Base):
         self.assertEqual(self.post('updateDeal', **EDIT4)['row'], 5)
         row = self.data()['deals'][4]
         self.assertEqual((row[0], row[15], row[18]), ('4', '', 'Sent.'))
-        self.assertEqual(git(self.dir, 'log', '-1', '--format=%s'), 'Edit deal #4 (notes)')
+        self.assertEqual(self.last_change(), 'Edit deal #4 (notes)')
         self.assertEqual(self.post('updateDeal', **dict(EDIT4, orig='3'))['error'], server.CHANGED)
         self.assertEqual(self.post('updateDeal', **dict(EDIT4, n=1))['error'], 'Deal #1 already exists.')
         self.assertIn('part of a reinvestment', self.post('updateDeal', **dict(EDIT4, n=9))['error'])
@@ -267,7 +236,7 @@ class HttpTests(Base):
         self.assertIn('already a customer called', self.post('addCustomer', name='sample breeder')['error'])
         self.assertEqual(self.post('addCustomer', name=' ')['error'], 'Enter the customer name.')
         self.post('updateCustomer', row=5, orig='CUS-04', name='Test Kennels', phone='', notes='')
-        self.assertEqual(git(self.dir, 'log', '-1', '--format=%s'), 'Edit customer CUS-04 (name, phone, notes)')
+        self.assertEqual(self.last_change(), 'Edit customer CUS-04 (name, phone, notes)')
         self.assertIn('already a customer called', self.post('updateCustomer', row=5, orig='CUS-04', name='Jane Doe')['error'])
         self.assertTrue(self.post('updateCustomer', row=5, orig='CUS-04', name='test kennels')['ok'])  # same customer, new case
         self.assertIn('still has arrangements', self.post('deleteCustomer', row=2, orig='CUS-01')['error'])
@@ -328,10 +297,11 @@ class HttpTests(Base):
         self.assertEqual(self.req('GET', r['url']), (200, pdf))
         self.assertEqual(self.data()['arr'][3][10], r['url'])
         arr = self.store.load('arr')[2]
-        self.assertEqual((arr['contract_file'], arr['contract_url']), ('ARR-03 contract - Sample Breeder (litter).pdf', ''))
-        # replacing it with a photo removes the old file
+        self.assertEqual(arr['contract_file'], 'ARR-03 contract - Sample Breeder (litter).pdf')
+        # replacing it with a photo takes the old file out of use
         self.post('uploadContract', row=4, orig='ARR-03', name='scan.jpg', data=base64.b64encode(b'jpg').decode())
-        self.assertEqual(sorted(os.listdir(self.store.contracts)), ['ARR-03 contract - Sample Breeder (litter).jpg'])
+        self.assertEqual(self.req('GET', r['url'])[0], 404)
+        self.assertEqual(self.store.db.execute('SELECT name FROM contracts').fetchall(), [('ARR-03 contract - Sample Breeder (litter).jpg',)])
         self.assertIn('PDF, a Word file', self.post('uploadContract', row=4, orig='ARR-03', name='x.exe', data='AAAA')['error'])
         self.assertEqual(self.post('uploadContract', row=4, orig='ARR-03', name='x.pdf', data='')['error'], 'No file was received.')
         self.assertEqual(self.post('uploadContract', row=4, orig='ARR-09', name='x.pdf', data='AAAA')['error'], server.CHANGED)
@@ -344,16 +314,19 @@ class HttpTests(Base):
         self.assertEqual([h['current'] for h in hist[:2]], [True, False])
         self.assertTrue(hist[2]['restorable'])
         self.assertFalse(hist[-1]['restorable'])  # the empty start
-        self.assertTrue(self.post('restore', hash=hist[2]['hash'])['ok'])
+        link = self.data()['arr'][1][10]
+        self.assertEqual(self.req('GET', link), (200, b'%PDF'))
+        self.assertTrue(self.post('restore', id=hist[2]['id'])['ok'])
         self.assertEqual(len(self.data()['deals']), 6)
-        self.assertEqual(os.listdir(self.store.contracts), [])  # the contract added later is gone too
-        self.assertTrue(git(self.dir, 'log', '-1', '--format=%s').startswith('Restore to how it was after "Import" ('))
+        self.assertEqual(self.req('GET', link)[0], 404)  # the contract added later is gone too
+        self.assertTrue(self.last_change().startswith('Restore to how it was after "Import" ('))
         # and the restore can itself be undone
         hist = self.store.history()
-        self.post('restore', hash=hist[1]['hash'])
+        self.post('restore', id=hist[1]['id'])
         self.assertEqual(len(self.data()['deals']), 7)
-        self.assertEqual(self.post('restore', hash=hist[-1]['hash'])['error'], 'That point in the history cannot be restored.')
-        self.assertEqual(self.post('restore', hash='nope')['error'], 'That point in the history cannot be restored.')
+        self.assertEqual(self.req('GET', link), (200, b'%PDF'))  # and the contract is back
+        self.assertEqual(self.post('restore', id=hist[-1]['id'])['error'], 'That point in the history cannot be restored.')
+        self.assertEqual(self.post('restore', id='nope')['error'], 'That point in the history cannot be restored.')
 
     def test_reminder_setting(self):
         self.assertEqual(self.post('setReminders', on=False)['reminders'], {'on': False})
@@ -361,16 +334,15 @@ class HttpTests(Base):
         self.post('setReminders', on=True)
         self.assertEqual(self.data()['reminders'], {'on': True})
 
-    def test_settings_need_a_google_url(self):
-        r = self.post('saveSettings', url='http://example.com/exec', key='k' * 64)
-        self.assertIn('starts with https://script.google.com/', r['error'])
-
-    def test_report_is_stored(self):
-        report = {'rows': [['Outlook', 'Amount'], ['Received', 225690]], 'bold': [0]}
-        self.post('report', report=report)
-        with open(os.path.join(self.dir, 'report.json')) as f:
-            self.assertEqual(json.load(f), report)
-        self.assertEqual(self.post('report', report='x')['error'], 'The report was not readable.')
+    def test_backup_folder_setting(self):
+        self.assertIn('full path', self.post('saveSettings', folder='relative/path')['error'])
+        self.assertIn('outside the data folder', self.post('saveSettings', folder=os.path.join(self.dir, 'b'))['error'])
+        folder = tempfile.mkdtemp(prefix='wagtales-backup-')
+        self.addCleanup(shutil.rmtree, folder, True)
+        r = self.post('saveSettings', folder=folder)
+        self.assertEqual((r['sync']['state'], r['sync']['folder']), ('ok', folder))
+        self.assertEqual(len(os.listdir(folder)), 1)
+        self.assertEqual(self.post('saveSettings', folder='')['sync']['state'], 'off')
 
 
 class ReminderTests(Base):
@@ -393,12 +365,12 @@ class ReminderTests(Base):
 
     def test_money_not_sent_and_failing_backup(self):
         self.store.act('addDeal', DEAL)
-        self.backup.settings.update(url='https://script.google.com/x/exec', key='k' * 64)
+        self.backup.settings.update(backup_dir='/nowhere')
         self.backup.status = {'state': 'error', 'last': '', 'error': 'x'}
         self.day = dt.date(2026, 10, 22)
         self.rem.check()
         self.assertEqual(self.shown, ['Deal #6, Sample Breeder: the money is not marked as sent yet.',
-                                      'The Google Sheet backup is failing. Open the tracker to see why.'])
+                                      'The backup is failing. Open the tracker to see why.'])
 
     def test_off(self):
         self.backup.settings.update(notify=False)
@@ -406,172 +378,77 @@ class ReminderTests(Base):
         self.assertEqual(self.shown, [])
 
 
-class FakeScript:
-    """stands in for the Apps Script web app, including Google's redirect from POST to a GET"""
-
-    def __init__(self, version=5, key='k' * 64):
-        self.calls, self.version, self.key, self.answers = [], version, key, {}
-        fake = self
-
-        class H(BaseHTTPRequestHandler):
-            def log_message(self, *a):
-                pass
-
-            def do_POST(self):
-                body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                fake.calls.append(body)
-                token = str(len(fake.calls))
-                fake.answers[token] = fake.answer(body)
-                self.send_response(302)
-                self.send_header('Location', '/echo?t=' + token)
-                self.end_headers()
-
-            def do_GET(self):
-                out = json.dumps(fake.answers[self.path.split('=')[1]]).encode()
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', str(len(out)))
-                self.end_headers()
-                self.wfile.write(out)
-
-        self.httpd = HTTPServer(('127.0.0.1', 0), H)
-        self.url = 'http://127.0.0.1:%d/exec' % self.httpd.server_address[1]
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
-
-    def answer(self, body):
-        if body.get('key') != self.key:
-            return {'ok': False, 'error': 'bad_key'}
-        a = body['action']
-        if self.version < 4 and a != 'read':
-            return {'ok': False, 'error': 'Unknown action.'}
-        if self.version < 5 and a == 'getContract':
-            return {'ok': False, 'error': 'Unknown action.'}
-        out = {'ok': True, 'version': self.version}
-        if a == 'saveContract':
-            out['url'] = 'https://drive.google.com/file/d/NEW/view'
-        if a == 'getContract':
-            out.update(name='ARR-01 contract - Sample Breeder.pdf', data=base64.b64encode(b'%PDF ' + body['url'].encode()).decode())
-        if a == 'read':
-            out.update(SHEET)
-        return out
-
-    def actions(self):
-        return [c['action'] for c in self.calls]
-
-    def close(self):
-        self.httpd.shutdown()
-        self.httpd.server_close()
-
-
 class BackupTests(Base):
     def setUp(self):
         super().setUp()
-        self.fake = FakeScript(version=4)
-        self.configure(self.fake.key)
-        self.backup.retry_wait = 0
+        self.folder = tempfile.mkdtemp(prefix='wagtales-backup-')
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        self.day = dt.date(2026, 11, 6)
+        self.backup.today = lambda: self.day
+        self.backup.settings.update(backup_dir=self.folder)
 
-    def tearDown(self):
-        self.fake.close()
-        super().tearDown()
-
-    def configure(self, key):
-        self.backup.settings.update(url=self.fake.url, key=key)
-
-    def test_sync_sends_every_tab_and_skips_when_nothing_changed(self):
-        self.backup.report = {'rows': [['Received', 225690]], 'bold': []}
-        self.backup.run()
-        self.assertEqual(self.fake.actions(), ['ping', 'sync'])
-        sent = self.fake.calls[1]
-        self.assertEqual(sent['deals']['tab'], 'Deals')
-        self.assertEqual(sent['cust']['tab'], 'Customers')
-        self.assertEqual(sent['deals']['head'][8], 'Profit')
-        self.assertEqual(sent['deals']['kinds'][4], 'd')
-        self.assertEqual(sent['deals']['rows'][0][:9], [1, 'ARR-01', 'Sample Breeder', 'Closed', '2026-08-28', 705060, 545355, 474849, 70506])
-        self.assertEqual(sent['arr']['rows'][0][10], SHEET['arr'][1][10])
-        self.assertEqual(sent['report'], self.backup.report)
-        status = self.backup.public()
-        self.assertEqual(status['state'], 'ok')
-        self.assertIn('one version behind', status['notice'])  # version 4 cannot write the Customers tab
-        self.backup.run()
-        self.assertEqual(self.fake.actions(), ['ping', 'sync'])  # unchanged, so nothing sent
-        self.backup.run(force=True)
-        self.assertEqual(self.fake.actions(), ['ping', 'sync', 'sync'])
-        self.store.act('markReceived', {'row': 4, 'deal': '3', 'logistics': 0})
-        self.backup.run()
-        self.assertEqual(self.fake.actions(), ['ping', 'sync', 'sync', 'sync'])
-
-    def test_new_contracts_are_copied_to_drive_first(self):
-        self.store.act('uploadContract', {'row': 3, 'orig': 'ARR-02', 'name': 'a.pdf',
-                                          'data': base64.b64encode(b'%PDF').decode()})
-        self.backup.run()
-        self.assertEqual(self.fake.actions(), ['ping', 'saveContract', 'sync'])
-        self.assertEqual(self.fake.calls[1]['name'], 'ARR-02 contract - Jane Doe.pdf')
-        self.assertEqual(self.fake.calls[1]['mimeType'], 'application/pdf')
-        self.assertEqual(self.store.load('arr')[1]['contract_url'], 'https://drive.google.com/file/d/NEW/view')
-        self.assertEqual(self.fake.calls[2]['arr']['rows'][1][10], 'https://drive.google.com/file/d/NEW/view')
-
-    def test_drive_only_contracts_are_downloaded_with_the_new_script(self):
-        self.fake.version = 5
-        self.backup.run()
-        self.assertEqual(self.fake.actions(), ['ping', 'sync', 'getContract', 'getContract'])
-        arr = self.store.load('arr')
-        self.assertEqual(arr[0]['contract_file'], 'ARR-01 contract - Sample Breeder.pdf')
-        self.assertEqual(arr[2]['contract_file'], 'ARR-03 contract - Sample Breeder (litter).pdf')
-        self.assertTrue(arr[0]['contract_url'].startswith('https://drive.google.com/'))  # the Drive link stays
-        with open(os.path.join(self.store.contracts, arr[0]['contract_file']), 'rb') as f:
-            self.assertTrue(f.read().startswith(b'%PDF https://drive.google.com/file/d/1Fak'))
-        self.assertEqual(self.backup.public()['notice'], '')
-        self.assertTrue(server.build(self.store.snapshot())['arr'][0][10].startswith('/contracts/'))
-        self.backup.run(force=True)
-        self.assertEqual(self.fake.actions()[4:], ['sync'])  # nothing left to download
-
-    def test_wrong_key(self):
-        self.configure('x' * 64)
-        self.backup.run()
-        s = self.backup.public()
-        self.assertEqual(s['state'], 'error')
-        self.assertIn('key does not match', s['error'])
-        self.assertEqual(self.fake.actions(), ['ping', 'ping'])  # tried twice before giving up
-
-    def test_one_failed_request_is_retried(self):
-        answer = self.fake.answer
-        flaky = iter([{'ok': False, 'error': 'bad_key'}])
-        self.fake.answer = lambda body: next(flaky, None) or answer(body)
-        self.backup.run()
-        self.assertEqual(self.backup.public()['state'], 'ok')
-        self.assertEqual(self.fake.actions(), ['ping', 'ping', 'sync'])
-
-    def test_old_script(self):
-        self.fake.version = 3
-        self.backup.run()
-        self.assertIn('out of date', self.backup.public()['error'])
-
-    def test_unreachable(self):
-        self.fake.close()
-        self.backup.run()
-        self.assertIn('Could not reach Google', self.backup.public()['error'])
-        self.fake = FakeScript()  # for tearDown
-
-    def test_off_without_settings(self):
-        os.remove(os.path.join(self.dir, 'settings.json'))
+    def test_off_without_a_folder(self):
+        self.backup.settings.update(backup_dir='')
         self.backup.run()
         self.assertEqual(self.backup.public()['state'], 'off')
-        self.assertEqual(self.fake.calls, [])
 
-    def test_restore_from_the_sheet(self):
-        fresh = tempfile.mkdtemp(prefix='wagtales-restore-')
-        try:
-            shutil.copy(os.path.join(self.dir, 'settings.json'), fresh)
-            with open(os.devnull, 'w') as quiet:
-                old, sys.stdout = sys.stdout, quiet
-                try:
-                    server.main(['--data', fresh, '--restore'])
-                finally:
-                    sys.stdout = old
-            restored = server.Store(fresh)
-            self.assertEqual(restored.snapshot(), self.store.snapshot())
-        finally:
-            shutil.rmtree(fresh, ignore_errors=True)
+    def test_copy_holds_everything(self):
+        with self.store.lock, self.store.db:
+            self.store.put_contract('c.pdf', b'%PDF')
+        self.backup.run()
+        self.assertEqual(self.backup.public()['state'], 'ok')
+        self.assertEqual(os.listdir(self.folder), ['wagtales-2026-11-06.db'])
+        path = os.path.join(self.folder, 'wagtales-2026-11-06.db')
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        db = sqlite3.connect(path)
+        self.addCleanup(db.close)
+        self.assertEqual(db.execute('SELECT COUNT(*) FROM deals').fetchone()[0], 5)
+        self.assertEqual(db.execute('SELECT COUNT(*) FROM contract_data').fetchone()[0], 1)
+
+    def test_one_copy_a_day_and_the_oldest_are_removed(self):
+        other = os.path.join(self.folder, 'my-notes.txt')
+        open(other, 'w').close()
+        for i in range(server.KEEP_BACKUPS + 2):
+            self.day = dt.date(2026, 1, 1) + dt.timedelta(days=i)
+            self.backup.run()
+            self.backup.run()
+        copies = sorted(f for f in os.listdir(self.folder) if f.endswith('.db'))
+        self.assertEqual(len(copies), server.KEEP_BACKUPS)
+        self.assertEqual(copies[0], 'wagtales-2026-01-03.db')
+        self.assertTrue(os.path.exists(other))  # only its own files are removed
+
+    def test_a_failure_is_shown_and_leaves_no_temporary_file(self):
+        self.backup.settings.update(backup_dir=os.path.join(self.folder, 'file', 'below'))
+        open(os.path.join(self.folder, 'file'), 'w').close()
+        self.backup.run()
+        self.assertEqual(self.backup.public()['state'], 'error')
+        self.assertIn('Could not save a backup', self.backup.public()['error'])
+        self.assertEqual(os.listdir(self.folder), ['file'])
+
+    def test_restore_from_a_copy(self):
+        with self.store.lock, self.store.db:
+            self.store.put_contract('c.pdf', b'%PDF')
+        self.backup.run()
+        copy = os.path.join(self.folder, 'wagtales-2026-11-06.db')
+        fresh = tempfile.mkdtemp(prefix='wagtales-restored-')
+        self.addCleanup(shutil.rmtree, fresh, True)
+        server.main(['--data', fresh, '--restore', copy])
+        restored = server.Store(fresh)
+        self.addCleanup(restored.db.close)
+        self.assertEqual(restored.snapshot(), self.store.snapshot())
+        self.assertEqual(restored.contract('c.pdf'), b'%PDF')
+        self.assertEqual(restored.history()[0]['message'], self.store.history()[0]['message'])
+        with self.assertRaises(SystemExit):  # it only fills an empty folder
+            server.main(['--data', fresh, '--restore', copy])
+
+    def test_restore_refuses_a_file_that_is_not_a_backup(self):
+        bad = os.path.join(self.folder, 'bad.db')
+        with open(bad, 'wb') as h:
+            h.write(b'not a database at all')
+        fresh = tempfile.mkdtemp(prefix='wagtales-restored-')
+        self.addCleanup(shutil.rmtree, fresh, True)
+        with self.assertRaises(SystemExit):
+            server.main(['--data', fresh, '--restore', bad])
 
 
 if __name__ == '__main__':

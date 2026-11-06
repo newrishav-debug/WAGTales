@@ -1,0 +1,168 @@
+{
+ "cust": [
+  {
+   "id": "CUS-01",
+   "name": "Sample Breeder",
+   "phone": "",
+   "notes": ""
+  },
+  {
+   "id": "CUS-02",
+   "name": "Jane Doe",
+   "phone": "",
+   "notes": ""
+  },
+  {
+   "id": "CUS-03",
+   "name": "Alex Kumar Example",
+   "phone": "",
+   "notes": ""
+  }
+ ],
+ "arr": [
+  {
+   "id": "ARR-01",
+   "type": "6-month recurring",
+   "term_months": "6",
+   "projection": "latest",
+   "cycle_profit": "",
+   "contract_file": "",
+   "label": "",
+   "customer_id": "CUS-01"
+  },
+  {
+   "id": "ARR-02",
+   "type": "One-time",
+   "term_months": "",
+   "projection": "latest",
+   "cycle_profit": "",
+   "contract_file": "",
+   "label": "",
+   "customer_id": "CUS-02"
+  },
+  {
+   "id": "ARR-03",
+   "type": "4-month recurring",
+   "term_months": "4",
+   "projection": "latest",
+   "cycle_profit": "",
+   "contract_file": "",
+   "label": "litter",
+   "customer_id": "CUS-01"
+  },
+  {
+   "id": "ARR-04",
+   "type": "3-month recurring",
+   "term_months": "3",
+   "projection": "latest",
+   "cycle_profit": "",
+   "contract_file": "",
+   "label": "",
+   "customer_id": "CUS-03"
+  }
+ ],
+ "deals": [
+  {
+   "deal_no": "1",
+   "arrangement_id": "ARR-01",
+   "status": "Closed",
+   "investment_date": "2026-08-28",
+   "mrp": "705060",
+   "selling_price": "545355",
+   "distributor_price": "474849",
+   "invested_amount": "474849",
+   "amount_sent": "Yes",
+   "transaction_no": "100000000001",
+   "return_type": "Profit Only",
+   "tentative_return_date": "2026-10-03",
+   "logistics": "4776",
+   "return_received": "Yes",
+   "notes": "",
+   "received_date": "2026-10-03"
+  },
+  {
+   "deal_no": "2",
+   "arrangement_id": "ARR-02",
+   "status": "Closed",
+   "investment_date": "2026-09-29",
+   "mrp": "207000",
+   "selling_price": "161460",
+   "distributor_price": "134550",
+   "invested_amount": "134460",
+   "amount_sent": "Yes",
+   "transaction_no": "100000000002",
+   "return_type": "Profit + Principal",
+   "tentative_return_date": "2026-10-07",
+   "logistics": "1500",
+   "return_received": "Yes",
+   "notes": "",
+   "received_date": "2026-10-07"
+  },
+  {
+   "deal_no": "3",
+   "arrangement_id": "ARR-01",
+   "status": "Active",
+   "investment_date": "2026-10-04",
+   "mrp": "705060",
+   "selling_price": "545355",
+   "distributor_price": "474849",
+   "invested_amount": "474849",
+   "amount_sent": "Yes",
+   "transaction_no": "100000000001",
+   "return_type": "Profit Only",
+   "tentative_return_date": "2026-11-07",
+   "logistics": "",
+   "return_received": "No",
+   "notes": "Return expected soon.",
+   "received_date": ""
+  },
+  {
+   "deal_no": "4",
+   "arrangement_id": "ARR-03",
+   "status": "Active",
+   "investment_date": "2026-10-04",
+   "mrp": "577200",
+   "selling_price": "432900",
+   "distributor_price": "375180",
+   "invested_amount": "375180",
+   "amount_sent": "Yes",
+   "transaction_no": "100000000003",
+   "return_type": "Profit Only",
+   "tentative_return_date": "2026-11-04",
+   "logistics": "",
+   "return_received": "No",
+   "notes": "Cycle 1 of 4. Litter order.",
+   "received_date": ""
+  },
+  {
+   "deal_no": "5",
+   "arrangement_id": "ARR-04",
+   "status": "Active",
+   "investment_date": "2026-10-18",
+   "mrp": "873000",
+   "selling_price": "680940",
+   "distributor_price": "567450",
+   "invested_amount": "567450",
+   "amount_sent": "Yes",
+   "transaction_no": "100000000004\n100000000005",
+   "return_type": "Profit Only",
+   "tentative_return_date": "2026-11-30",
+   "logistics": "",
+   "return_received": "No",
+   "notes": "Seasonal order",
+   "received_date": ""
+  }
+ ],
+ "reinv": [
+  {
+   "date": "2026-10-04",
+   "source_deal_no": "1",
+   "amount": "65730",
+   "destination_deal_no": "4",
+   "destination": "",
+   "expected_return_date": "",
+   "return_received": "No",
+   "notes": "Deal 1 profit after 4,776 logistics. Covers 65,730 of deal 4's 375,180 investment."
+  }
+ ]
+}

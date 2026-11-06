@@ -6,55 +6,45 @@ A personal tracker for funding pet-food resale deals. The owner funds the distri
 
 The **web app on the owner's Mac is the entry point and the source of truth**. It runs only on the Mac (owner's choice), at http://127.0.0.1:8765, started at login by a launchd agent (`com.wagtales.local`).
 
-- `app/server.py`: Python 3.9 standard library only, because launchd runs `/usr/bin/python3`. It serves the page, a JSON API, and contract files, stores data as CSV, and runs two background threads: the backup and the reminders.
-- `app/index.html`: the whole UI, edited directly. It came from the earlier claude.ai artifact (`wagtales.html`, now deleted; it's in git history).
-- `app/apps-script.gs`: the Google Sheet backup endpoint (`SCRIPT_VERSION = 5`).
+- `app/server.py`: Python 3.9 standard library only, because launchd runs `/usr/bin/python3`. It serves the page, a JSON API, and contract files, stores data in SQLite, and runs two background threads: the backup and the reminders.
+- `app/index.html`: the whole UI, edited directly.
 - `install.sh`: copies `app/` to `~/WAGTales/app` and (re)loads the launchd agent. It installs outside the repo because launchd agents can't read `~/Desktop`.
 
-### Data: `~/WAGTales/data`
-Not in this repo. `data-template/` holds the CSV columns with no rows, and everything in `test/fixtures/` is made up.
-- `customers.csv`: `id` (CUS-01…), name, phone, notes.
-- `arrangements.csv`: `id`, `customer_id`, `label` (e.g. "litter"), type, term_months, `projection` (`latest`/`fixed`/`none`), `cycle_profit`, `contract_file`, `contract_url`.
-- `deals.csv`: inputs only, plus `received_date`.
-- `reinvestments.csv`: `destination_deal_no` (a linked deal) or free-text `destination`.
-- `contracts/`: local contract files, named `ARR-xx contract - <customer>.<ext>`.
-- A git repo: every change is committed with a readable message (e.g. "Edit deal #4 (notes)"). The History tab lists the commits and restores a point by checking those files out as a new commit. Commits starting `Data format:` change the CSV columns, and history can't be restored past them.
-- Git-ignored: `settings.json` (mode 600: backup URL, key, and `notify` for reminders), `report.json` (the latest dashboard report), `reminders.json` (what was notified today).
+### Data: `~/WAGTales/data/wagtales.db`
+One SQLite file (mode 600) holds everything. All record columns are text: ISO dates, plain numbers.
+- `customers`, `arrangements`, `deals`, `reinvestments`: inputs only; worked-out columns are computed in `build()`. Columns are in `TABLES` in server.py.
+- `contracts` (name to hash) and `contract_data` (hash to file contents): contract files. Contents are never removed, because the history can bring them back.
+- `history`: a full copy of the records after every change, with a readable message (e.g. "Edit deal #4 (notes)"). The History tab lists them, and a restore is saved as a new change.
+- `PRAGMA user_version` is `DB_VERSION`. Changing a table means raising it and adding a migration.
 
-Formats are upgraded on start. `Store._upgrade` moves the first format (21.10.2026: customer as text on arrangements, no received dates) to the current one. It splits "Name (label)" into a customer plus a label and merges customers by name. Fixture: `test/fixtures/v1-data`. The owner doesn't edit the CSVs by hand; all changes go through the app.
+`settings.json` (mode 600: `backup_dir`, `notify`) and `reminders.json` (what was notified today) sit beside the database.
 
-An arrangement's display name, used everywhere (Deals "Customer", the sheet), is the customer's name plus "(label)" when there is a label.
+There is **no CSV and no Google Sheet or Drive code**. The move happened once, on 06.11.2026, with a script that isn't in the repo. The owner's Sheet still exists but nothing reads or writes it.
 
-### Google Sheet: backup and reports only
-WAGTales Investment, ID `15KTdFGPKTQuRLtLUg4L3fFVz-boxhVVxLmm4Z5JZc9g`. After every change, the backup thread works through these steps:
-1. On the first run, it pings to learn the script version.
-2. It copies new local contracts to the Drive folder **WAGTales Contracts** (`10zo3a3jNeNt2cZfHg0YgkCGwtOQgHbaE`).
-3. It sends a `sync` with every tab plus a report. The call is skipped when the content hash is unchanged.
-4. With script v5, it downloads contracts that exist only in Drive (`getContract`, limited to that folder).
+An arrangement's display name, used everywhere, is the customer's name plus "(label)" when there is a label.
 
-A failed request is retried once, because Google occasionally fails a single request, even with a bad_key reply. Failures are retried every 15 minutes.
+### Backup folder
+Set in the Backup dialog (`backup_dir`). After every change, and on start, `Backup` saves `wagtales-YYYY-MM-DD.db` in that folder using SQLite's backup API, checks it with `quick_check`, and keeps the last 30. It only ever removes files matching that name. Failures show in the header and are retried every 15 minutes. `python3 app/server.py --restore FILE.db` fills an empty data folder from a copy; restart the app afterwards with `bash install.sh`.
 
-The script rewrites the Customers (v5 only), Arrangements, Deals and Reinvestments tabs as values, and writes a **Dashboard** tab (first tab) from the report the page builds out of `model()`. **Summary** and **Margins** are untouched; Summary's formulas still work because the original columns keep their positions. With a v4 script the backup still works, but `public()` shows a notice asking for the script update. `python3 app/server.py --restore` refills an empty data folder from the sheet; `from_sheet` reads both the current layout and the first one.
-
-### Sheet-shaped columns (what `/api/data` returns and the backup writes)
+### Page columns (what `/api/data` returns)
 The original columns keep their positions (the page reads `o.c[i]`, `o.row` = row number), and new columns go on the end:
 - **Customers A:F**: ID · Name · Phone · Notes · Arrangements · Deals.
 - **Arrangements A:O**: ID · Customer (display name) · Type · Term · Start (earliest deal) · End (EDATE start+term) · Deals · Agreed Return · Received · Outstanding · Contract · **Customer ID · Label · Projection · Profit per Cycle**.
 - **Deals A:U**: Deal # · Arrangement · Customer · Status · Investment Date · MRP · Selling Price · Distributor Price · Profit (sell − dist) · Invested · Amount Sent · Transaction No. (text) · Return Type · Agreed Return (profit, or dist + profit for Profit + Principal) · Tentative Return Date · Logistics · Actual Return (agreed − logistics) · Return Received · Notes · Check · **Received Date**.
 - **Reinvestments A:H**: Date · Source Deal # · Amount · Destination ("Deal #4, <name>" when linked) · Expected Return Date · Return Received · Notes · **Destination Deal #**.
 
-`test_view_matches_the_sheet_formulas` checks the computed columns against a sample sheet (`test/fixtures/`, made-up data).
+`test_view_matches_the_expected_figures` checks the computed columns: `test/fixtures/sample-data.json` is the input and `expected-view.json` the result, both made up.
 
 ## API (`POST /api`, JSON, header `X-WagTales: 1` required)
 - **Customers:** `addCustomer`, `updateCustomer`, `deleteCustomer`.
 - **Arrangements:** `addArrangement`, `updateArrangement`, `deleteArrangement`, `uploadContract`. They take `custId`, or `newCust` to create the customer (or reuse one by name).
 - **Deals:** `addDeal`, `updateDeal` (`recvDate`), `markReceived` (`date`), `deleteDeal`.
 - **Reinvestments:** `addReinvestment`, `updateReinvestment`, `deleteReinvestment`. They take `destDeal` or `dest`.
-- **App:** `restore` (`hash`), `report`, `syncNow`, `saveSettings`, `setReminders` (`on`).
+- **App:** `restore` (`id`), `syncNow`, `saveSettings` (`folder`), `setReminders` (`on`).
 
 Edits and deletes send `row` plus the original key value (`orig`), and are refused if the row changed. Deletes are refused when a record is still in use: a customer with arrangements, an arrangement with deals, or a deal in a reinvestment (source or destination). A deal number used by a reinvestment can't be changed.
 
-GET endpoints: `/api/data`, `/api/status`, `/api/history`, `/contracts/<name>`, `/apps-script.gs`. The server only answers to `Host` 127.0.0.1/localhost.
+GET endpoints: `/api/data`, `/api/status`, `/api/history`, `/contracts/<name>`. The server only answers to `Host` 127.0.0.1/localhost.
 
 ## Reminders
 `Reminders` checks hourly, starting 60 s after launch, and posts a Mac notification via `osascript` at most once a day per item:
@@ -95,17 +85,14 @@ It can be switched on and off in the Backup dialog (`settings.json` `notify`). T
 
 ## Build, test, deploy
 ```bash
-python3 test/test_server.py          # store, upgrade, API, history, reminders, backup (fake Apps Script), restore
-node test/apps-script.test.js        # apps-script.gs against a simulated sheet and Drive
+python3 test/test_server.py          # database, API, history, reminders, backup folder, restore
 npm install --no-save puppeteer-core && node test/ui.test.js   # drives the page in Google Chrome; screenshots in test/shots/
 bash install.sh                      # deploy app/ to ~/WAGTales/app and restart; data is upgraded if needed, never replaced
 python3 app/server.py --data /tmp/x --port 8799   # run a scratch copy
 ```
-- **Apps Script changes:** paste `app/apps-script.gs` into the sheet's Extensions › Apps Script and save. Then Deploy › Manage deployments › Edit › **New version** › Deploy. **Never rerun `setup` once a key is in use**, because it replaces the key. When the script version rises, raise `LATEST_SCRIPT` in server.py; `SCRIPT_VERSION` there is the oldest script that still works.
 - Logs: `~/Library/Logs/wagtales-local.log`.
 
 ## History and open items
-- 21.10.2026: moved from "Google Sheet as database with two front ends" to this local app, with data imported from the live sheet. The backup was connected the same evening (script v4).
+- 21.10.2026: moved from "Google Sheet as database with two front ends" to this local app, with data imported from the sheet.
 - 21.10.2026 later: added customers, received dates, linked reinvestments, projection overrides, per-year return, financial-year report, Needs attention + Mac reminders, deal filters and sorting, statements and History.
-- **Waiting on the owner:** paste the v5 script and deploy a new version. Until then there's no Customers tab in the sheet, and the ARR-01/ARR-03 contracts stay Drive-only (they download automatically after the update).
-- The claude.ai artifact (https://claude.ai/artifact/65ScVZUaQTgv8YjVKErmtR) still writes to the sheet directly and should no longer be used.
+- 06.11.2026: moved from CSV files with a Google Sheet backup to one SQLite database with a backup folder. All Sheet, Drive and CSV code was removed.

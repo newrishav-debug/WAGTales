@@ -9,7 +9,7 @@ const REPO = path.join(__dirname, '..');
 const OUT = path.join(__dirname, 'shots');
 fs.mkdirSync(OUT, { recursive: true });
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'wagtales-ui-'));
-execFileSync('python3', [path.join(REPO, 'app/server.py'), '--data', DATA, '--import', path.join(REPO, 'test/fixtures/sheet-2026-10-21.json')]);
+execFileSync('python3', [path.join(REPO, 'app/server.py'), '--data', DATA, '--import', path.join(REPO, 'test/fixtures/sample-data.json')]);
 const PORT = 8799, URL = 'http://127.0.0.1:' + PORT + '/';
 const srv = spawn('python3', [path.join(REPO, 'app/server.py'), '--data', DATA, '--port', String(PORT)], { stdio: ['ignore', 'ignore', 'inherit'] });
 
@@ -57,10 +57,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const text = sel => p.$eval(sel, e => e.textContent);
   ok((await text('#sync-text')) === 'Backup off', 'header shows backup off');
   ok((await text('.outlook .fig')).replace(/,/g, '') > 0, 'outlook figure shown');
-  await sleep(500);
-  ok(fs.existsSync(path.join(DATA, 'report.json')), 'report sent to the app');
-  const rep = JSON.parse(fs.readFileSync(path.join(DATA, 'report.json')));
-  ok(rep.rows[0][0] === 'Outlook' && rep.rows.some(r => r[0] === 'All arrangements'), 'report has the outlook and arrangement rows');
 
   // add a deal for ARR-01 from the Deals tab
   await p.click('.tab[data-tab="deals"]');
@@ -76,8 +72,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok(attn.length === 1 && /Not sent/.test(attn[0]) && /Deal #6/.test(attn[0]), 'needs attention shows the unsent deal: ' + attn.join(' | '));
   ok(/FY 2026–27/.test(await p.$eval('#ov', e => e.textContent)), 'financial year card');
   ok(await p.$$eval('#ov table th', ths => ths.some(t => t.textContent === 'Per year')), 'per year column');
-  const csv = fs.readFileSync(path.join(DATA, 'deals.csv'), 'utf8');
-  ok(/\n6,ARR-01,Active,/.test(csv), 'deal 6 in the CSV');
+  const dealNos = async () => (await (await fetch(URL + 'api/data')).json()).deals.slice(1).map(r => r[0]);
+  ok((await dealNos()).includes('6'), 'deal 6 saved');
 
   // edit deal 5: the two transaction numbers survive as one line
   await p.click('.tab[data-tab="deals"]');
@@ -101,7 +97,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok((await text('#deal-title')) === 'Edit deal #6', 'editing deal 6: ' + await text('#deal-title'));
   await p.click('#d-delete'); await p.waitForNetworkIdle(); await sleep(300);
   ok(/Deal #6 deleted/.test(await text('#toast')), 'delete toast: ' + await text('#toast'));
-  ok(!/\n6,ARR-01/.test(fs.readFileSync(path.join(DATA, 'deals.csv'), 'utf8')), 'deal 6 gone from the CSV');
+  ok(!(await dealNos()).includes('6'), 'deal 6 gone');
 
   // a deal that feeds a reinvestment cannot be deleted
   await (await editBtn(1)).click();
@@ -123,11 +119,19 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // backup dialog
   await p.click('#conn-btn');
-  ok(!(await p.$eval('#conn-overlay', e => e.hidden)) && (await p.$eval('#conn-steps', e => e.open)), 'backup dialog open with steps');
+  ok(!(await p.$eval('#conn-overlay', e => e.hidden)) && (await p.$eval('#c-folder', e => e === document.activeElement)), 'backup dialog open on the folder');
   await p.screenshot({ path: path.join(OUT, 'backup-dialog.png') });
-  await p.type('#c-url', 'https://example.com/exec'); await p.type('#c-key', 'x'.repeat(64));
+  await p.type('#c-folder', 'not/a/full/path');
   await p.click('#c-save'); await sleep(500);
-  ok(/starts with https:\/\/script.google.com/.test(await text('#toast')), 'bad URL refused');
+  ok(/full path/.test(await text('#toast')), 'relative folder refused');
+  const BK = fs.mkdtempSync(path.join(os.tmpdir(), 'wagtales-ui-backup-'));
+  await p.$eval('#c-folder', e => { e.value = ''; }); await p.type('#c-folder', BK);
+  await p.click('#c-save'); await sleep(500);
+  ok(/Backup saved/.test(await text('#toast')) && fs.readdirSync(BK).length === 1, 'backup saved in the folder');
+  ok(/^Backed up/.test(await text('#sync-text')), 'header shows backed up');
+  await p.$eval('#c-folder', e => { e.value = ''; }); await p.click('#c-save'); await sleep(400);
+  ok((await text('#sync-text')) === 'Backup off', 'backup can be turned off');
+  fs.rmSync(BK, { recursive: true, force: true });
   await p.keyboard.press('Escape');
   ok(await p.$eval('#conn-overlay', e => e.hidden), 'dialog closes on Escape');
 
@@ -200,11 +204,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await p.$$eval('#hist-box tbody tr', trs => trs[1].querySelector('.btn').click());
   await p.waitForNetworkIdle(); await sleep(400);
   ok(/Restored/.test(await text('#toast')), 'restored toast');
-  ok(fs.readFileSync(path.join(DATA, 'reinvestments.csv'), 'utf8').trim().split('\n').length === 2, 'reinvestment undone');
+  ok((await (await fetch(URL + 'api/data')).json()).reinv.length === 2, 'reinvestment undone');
   await p.screenshot({ path: path.join(OUT, 'history.png'), fullPage: true });
 
-  const commits = execFileSync('git', ['-C', DATA, 'log', '--format=%s']).toString().trim().split('\n');
-  ok(/^Restore to how it was after/.test(commits[0]) && commits.includes('Save the contract for ARR-02') && commits.includes('Delete deal #6') && commits.includes('Add customer CUS-04 (Test Kennel)'), 'history: ' + commits.join(' | '));
+  const changes = (await (await fetch(URL + 'api/history')).json()).history.map(h => h.message);
+  ok(/^Restore to how it was after/.test(changes[0]) && changes.includes('Save the contract for ARR-02') && changes.includes('Delete deal #6') && changes.includes('Add customer CUS-04 (Test Kennel)'), 'changes recorded: ' + changes.slice(0, 5).join(' | '));
 
   ok(errs.length === 0, 'page errors: ' + errs.join(' | '));
   await browser.close();

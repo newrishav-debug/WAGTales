@@ -38,8 +38,9 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 && ! launchctl print "gui
 fi
 
 mkdir -p "$APP" "$DATA" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
-cp "$SRC/server.py" "$SRC/index.html" "$SRC/apps-script.gs" "$APP/"
-# files from the earlier version, which served a page that talked to the sheet directly
+cp "$SRC/server.py" "$SRC/index.html" "$APP/"
+rm -f "$APP/apps-script.gs"  # no longer part of the app
+# files from a much earlier version
 rm -f "$HOME_DIR/index.html" "$HOME_DIR/apps-script.txt"
 
 cat > "$PLIST" <<PLIST_EOF

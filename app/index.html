@@ -292,7 +292,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
 <div class="wrap">
   <div class="top">
     <div class="brand"><span class="mark" aria-hidden="true">W</span><div><h1>WAGTales</h1><p>Investment tracker</p></div></div>
-    <div class="meta"><span id="updated">Not loaded yet</span><button class="btn small backup" id="conn-btn" type="button"><i class="dot" id="sync-dot"></i><span id="sync-text">Backup</span></button><a class="btn small" href="https://docs.google.com/spreadsheets/d/15KTdFGPKTQuRLtLUg4L3fFVz-boxhVVxLmm4Z5JZc9g/edit" target="_blank" rel="noopener">Open sheet</a><button class="btn small" id="refresh" type="button">Refresh</button></div>
+    <div class="meta"><span id="updated">Not loaded yet</span><button class="btn small backup" id="conn-btn" type="button"><i class="dot" id="sync-dot"></i><span id="sync-text">Backup</span></button><button class="btn small" id="refresh" type="button">Refresh</button></div>
   </div>
 
   <div id="banner" class="banner" hidden></div>
@@ -433,23 +433,11 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
 <input type="file" id="contract-pick" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" hidden>
 <div class="overlay" id="conn-overlay" hidden>
   <form class="dialog wide" id="conn-form" role="dialog" aria-modal="true" aria-labelledby="conn-title" autocomplete="off">
-    <div><h2 id="conn-title">Backup and reminders</h2><p class="hint">Your data is kept on this Mac. After each change the app copies it to the <a href="https://docs.google.com/spreadsheets/d/15KTdFGPKTQuRLtLUg4L3fFVz-boxhVVxLmm4Z5JZc9g/edit" target="_blank" rel="noopener">WAGTales Investment sheet</a>, with a Dashboard tab for reports. The sheet is a copy, so changes made in it are overwritten.</p></div>
+    <div><h2 id="conn-title">Backup and reminders</h2><p class="hint">Your data is kept in a database on this Mac. After each change the app saves a copy in the folder below, one file a day, and keeps the last 30. Pick a folder that is not only on this Mac, such as iCloud Drive or an external disk.</p></div>
     <div class="preview" id="sync-status" aria-live="polite"></div>
-    <details id="conn-steps">
-      <summary>How to connect the sheet</summary>
-      <ol class="steps">
-        <li>Open the sheet and choose <b>Extensions &rsaquo; Apps Script</b>.</li>
-        <li>Delete the code that is there, paste the backup script and click Save. <span class="inline-actions"><button class="btn small" type="button" id="copy-script">Copy script</button><a href="apps-script.gs" target="_blank" rel="noopener">or open it</a></span></li>
-        <li>No key yet? Choose <b>setup</b> in the function menu, click <b>Run</b> and allow access, then copy the key from the execution log. If you already have a key, keep it: running setup again replaces it.</li>
-        <li>Choose <b>authorize</b> and click <b>Run</b> once, so contracts can be copied to Google Drive.</li>
-        <li>Click <b>Deploy &rsaquo; New deployment</b>, pick <b>Web app</b>, set Execute as <b>Me</b> and Who has access <b>Anyone</b>, then Deploy and copy the web app URL. If it was deployed before, use <b>Manage deployments &rsaquo; Edit &rsaquo; New version &rsaquo; Deploy</b>; the URL stays the same.</li>
-        <li>Paste the URL and the key below. If Google says &ldquo;OAuth client was not found&rdquo;, try again in a private window signed in to one Google account.</li>
-      </ol>
-    </details>
-    <div class="field"><label for="c-url">Web app URL</label><input id="c-url" placeholder="https://script.google.com/macros/s/.../exec" spellcheck="false"></div>
-    <div class="field"><label for="c-key">Key</label><input id="c-key" class="mono" spellcheck="false"><span class="hint">Kept on this Mac only.</span></div>
+    <div class="field"><label for="c-folder">Backup folder</label><input id="c-folder" placeholder="~/Library/Mobile Documents/com~apple~CloudDocs/WAGTales Backups" spellcheck="false"><span class="hint">The full path. Leave it empty to turn the backup off.</span></div>
     <label class="check"><input type="checkbox" id="rem-on"><span><b>Mac reminders.</b> A notification when a return is due tomorrow or today, when one is overdue, when money is not marked as sent, and when the backup keeps failing. At most once a day for each.</span></label>
-    <div class="actions"><button class="btn primary" type="submit" id="c-save">Save and connect</button><button class="btn" type="button" id="c-sync" hidden>Back up now</button><button class="btn" type="button" id="c-cancel">Close</button></div>
+    <div class="actions"><button class="btn primary" type="submit" id="c-save">Save</button><button class="btn" type="button" id="c-sync" hidden>Back up now</button><button class="btn" type="button" id="c-cancel">Close</button></div>
   </form>
 </div>
 
@@ -480,7 +468,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   function fmt(n) { return Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
   function num(s) { var n = parseFloat(String(s == null ? '' : s).replace(/,/g, '')); return isNaN(n) ? null : n; }
   function isoToday() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-  /* the app sends dates as 29.09.2026; the other forms are accepted too, as in the old sheet data */
+  /* the app sends dates as 29.09.2026; the other forms are accepted too, as in older data */
   function parseDMY(s) {
     s = String(s == null ? '' : s).trim(); var m;
     if ((m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s))) return new Date(+m[3], +m[2] - 1, +m[1]);
@@ -548,7 +536,6 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
     $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     showSync(res.sync);
     renderAll();
-    sendReport();
   }
   function load() {
     $('refresh').disabled = true;
@@ -707,7 +694,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
       }
       if (!d.sent && d.status !== 'Closed') out.push({ kind: 'warn', tag: 'Not sent', text: who, sub: 'The money is not marked as sent yet', act: 'edit', o: d.o, order: 2 });
     });
-    if (sync && sync.configured && sync.state === 'error') out.push({ kind: 'bad', tag: 'Backup', text: 'The Google Sheet backup is failing', sub: sync.error || '', act: 'backup', order: 3 });
+    if (sync && sync.configured && sync.state === 'error') out.push({ kind: 'bad', tag: 'Backup', text: 'The backup is failing', sub: sync.error || '', act: 'backup', order: 3 });
     return out.sort(function (a, b) { return a.order - b.order; });
   }
 
@@ -1558,24 +1545,24 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   }
   $('d-delete').addEventListener('click', function () {
     var ed = editDeal; if (!ed) return;
-    delWith(this, 'Delete deal', 'Delete deal #' + ed.n + '? It is removed from the tracker and from the sheet at the next backup.',
+    delWith(this, 'Delete deal', 'Delete deal #' + ed.n + '? It is removed from the tracker.',
       function () { return backend.deleteDeal(ed.row, ed.n); },
       function () { toast('Deal #' + ed.n + ' deleted.'); editDeal = null; $('deal-form').reset(); invAuto = true; numTouched = false; $('d-date').value = isoToday(); setDealMode(); go('deals'); });
   });
   $('a-delete').addEventListener('click', function () {
     var ed = editArr; if (!ed) return;
-    delWith(this, 'Delete arrangement', 'Delete arrangement ' + ed.id + '? It is removed from the tracker and from the sheet at the next backup.',
+    delWith(this, 'Delete arrangement', 'Delete arrangement ' + ed.id + '? It is removed from the tracker.',
       function () { return backend.deleteArrangement(ed.row, ed.id); },
       function () { toast('Arrangement ' + ed.id + ' deleted.'); editArr = null; idTouched = false; $('arr-form').reset(); $('a-type').value = 'Recurring'; syncTerm(); setArrMode(); go('arrangements'); });
   });
   $('r-delete').addEventListener('click', function () {
     var ed = editReinv; if (!ed) return;
-    delWith(this, 'Delete reinvestment', 'Delete this reinvestment? It is removed from the tracker and from the sheet at the next backup.',
+    delWith(this, 'Delete reinvestment', 'Delete this reinvestment? It is removed from the tracker.',
       function () { return backend.deleteReinvestment(ed.row, { date: ed.date, amount: ed.amount }); },
       function () { toast('Reinvestment deleted.'); editReinv = null; $('reinv-form').reset(); $('r-date').value = isoToday(); setReinvMode(); go('reinvest'); });
   });
 
-  /* ---------- Google Sheet backup ---------- */
+  /* ---------- backup folder ---------- */
   function when(s) {
     var d = s ? new Date(s) : null; if (!d || isNaN(d)) return '';
     var t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1600,23 +1587,20 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   }
   function fillStatus() {
     var s = sync || {}, box = $('sync-status'); box.textContent = '';
-    var msg = !s.configured ? 'Not connected yet. Follow the steps below once, and from then on every change is copied to the sheet.'
+    var msg = !s.configured ? 'The backup is off. If this Mac is lost, the data is lost with it.'
       : s.state === 'error' ? 'The last backup failed. ' + (s.error || '')
-      : s.state === 'pending' ? 'Copying the latest changes to the sheet\u2026'
-      : s.state === 'ok' ? 'Everything is copied to the sheet. Last backup ' + when(s.last) + '.'
-      : 'Connected.';
+      : s.state === 'pending' ? 'Saving a copy\u2026'
+      : s.state === 'ok' ? 'Copy saved in ' + s.folder + '. Last backup ' + when(s.last) + '.'
+      : 'Saving copies in ' + s.folder + '.';
     box.appendChild(el('span', s.configured && s.state === 'error' ? 'flag' : '', msg));
-    if (s.notice) box.appendChild(el('span', 'flag', s.notice));
     $('c-sync').hidden = !s.configured;
   }
   function openConn() {
     var s = sync || {};
-    $('c-url').value = s.url || ''; $('c-key').value = '';
-    $('c-key').placeholder = s.configured ? 'Saved. Paste a new key only to change it.' : '';
-    $('conn-steps').open = !s.configured || !!s.notice;
+    $('c-folder').value = s.folder || '';
     $('rem-on').checked = !!reminders.on;
     fillStatus(); $('conn-overlay').hidden = false;
-    (s.configured ? $('c-cancel') : $('c-url')).focus();
+    (s.configured ? $('c-cancel') : $('c-folder')).focus();
   }
   function closeConn() { $('conn-overlay').hidden = true; }
   $('conn-btn').addEventListener('click', openConn);
@@ -1625,61 +1609,15 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('conn-overlay').hidden) closeConn(); });
   $('conn-form').addEventListener('submit', function (e) {
     e.preventDefault();
-    var btn = $('c-save'); btn.disabled = true; btn.textContent = 'Connecting\u2026';
-    api('saveSettings', { url: $('c-url').value.trim(), key: $('c-key').value.trim() }).then(function (r) {
-      $('c-key').value = ''; showSync(r.sync); fillStatus(); toast('Connected. Copying everything to the sheet now.');
+    var btn = $('c-save'); btn.disabled = true; btn.textContent = 'Saving\u2026';
+    api('saveSettings', { folder: $('c-folder').value.trim() }).then(function (r) {
+      showSync(r.sync); fillStatus(); toast(r.sync.configured ? 'Backup saved in that folder.' : 'The backup is off.');
     }).catch(function (err) { toast(errText(err, false), true); })
-      .then(function () { btn.disabled = false; btn.textContent = 'Save and connect'; });
+      .then(function () { btn.disabled = false; btn.textContent = 'Save'; });
   });
   $('c-sync').addEventListener('click', function () {
     api('syncNow').then(function (r) { showSync(r.sync); }).catch(function (err) { toast(errText(err, false), true); });
   });
-  $('copy-script').addEventListener('click', function () {
-    fetch('apps-script.gs').then(function (r) { if (!r.ok) throw 0; return r.text(); })
-      .then(function (t) { return navigator.clipboard.writeText(t); })
-      .then(function () { toast('Script copied. Paste it into Apps Script.'); })
-      .catch(function () { toast('Copy did not work here. Use "or open it" and copy the script from that page.', true); });
-  });
-
-  /* ---------- report for the Dashboard tab of the sheet ---------- */
-  var lastReport = '';
-  function sendReport() {
-    var r = buildReport(), j = JSON.stringify(r);
-    if (!r || j === lastReport) return;
-    api('report', { report: r }).then(function (res) { lastReport = j; showSync(res.sync); }).catch(function () {});
-  }
-  function buildReport() {
-    if (!loadedOnce || !data.deals.length) return null;
-    var m = model(), rows = [], bold = [], R = Math.round;
-    function head(cells) { if (rows.length) rows.push([]); bold.push(rows.length); rows.push(cells); }
-    function pc(v) { return v == null ? 'n/a' : (v * 100).toFixed(1) + '%'; }
-    head(['Outlook', 'Amount', 'Note']);
-    rows.push(['Profit outlook', R(m.outlook), m.lastDate ? 'to ' + mlabel(mkey(m.lastDate), true) : '']);
-    rows.push(['Received', R(m.received), 'profit already paid out']);
-    rows.push(['Expected', R(m.expected), 'booked deals not yet paid, after logistics']);
-    rows.push(['Projected', R(m.projected), 'remaining cycles of recurring arrangements, after logistics']);
-    rows.push(['Logistics rate', pc(m.lgRate), 'share of profit spent on logistics in paid deals']);
-    rows.push(['Capital invested', R(m.capitalAll), 'largest single investment per arrangement']);
-    rows.push(['Expected return', pc(m.returnPct), 'outlook divided by capital']);
-    rows.push(['Reinvested', R(m.reinvested), m.received > 0 ? pct(m.reinvested, m.received) + ' of profit received' : '']);
-    head(['Arrangement', 'Customer', 'Type', 'Capital', 'Profit received', 'Profit to come', 'Total profit', 'Return', 'Per year', 'Projection']);
-    m.arrs.forEach(function (a) {
-      rows.push([a.id, a.cust, a.type, R(a.capital), R(a.received), R(a.toCome), R(a.total), a.capital > 0 ? pc(a.total / a.capital) : '', a.perYear == null ? '' : pc(a.perYear),
-        !/recurring/i.test(a.type) ? '' : a.projMode === 'none' ? 'none' : a.projMode === 'fixed' ? 'fixed ' + fmt(a.cycle || 0) : 'latest deal']);
-    });
-    bold.push(rows.length);
-    rows.push(['All arrangements', '', '', R(m.capitalAll), R(m.received), R(m.expected + m.projected), R(m.outlook), pc(m.returnPct), pc(m.perYear), '']);
-    head(['Customer', 'Phone', 'Arrangements', 'Capital', 'Profit received', 'Profit to come', 'Total profit']);
-    m.custs.forEach(function (c) { rows.push([c.name, c.phone, c.arrs.length, R(c.capital), R(c.received), R(c.toCome), R(c.total)]); });
-    head(['Month', 'Received', 'Expected', 'Projected', 'Total']);
-    monthBuckets(m).cats.forEach(function (c) { rows.push([c.key === 1e9 ? 'No date' : mlabel(c.key, true), R(c.recv), R(c.exp), R(c.proj), R(c.recv + c.exp + c.proj)]); });
-    head(['Financial year', 'Received', 'Expected', 'Projected', 'Total']);
-    fyBuckets(m).forEach(function (y) { rows.push([fyLabel(y.key), R(y.recv), R(y.exp), R(y.proj), R(y.recv + y.exp + y.proj)]); });
-    head(['Due', 'Customer', 'Return', 'Amount', 'Kind']);
-    upcoming(m).forEach(function (it) { rows.push([fmtDMY(it.due), it.cust, it.line, R(it.amount), it.kind === 'proj' ? 'Projected' : 'Booked']); });
-    return { rows: rows, bold: bold };
-  }
-
   /* ---------- small form helpers ---------- */
   function custName(id) { var c = data.cust.filter(function (o) { return cellVal(o, 0) === id; })[0]; return c ? cellVal(c, 1) : ''; }
   function syncCust() { var isNew = $('a-custsel').value === '__new'; $('a-new-w').hidden = !isNew; $('a-newcust').required = isNew; }
@@ -1720,7 +1658,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   });
   $('cu-delete').addEventListener('click', function () {
     var ed = editCust; if (!ed) return;
-    delWith(this, 'Delete customer', 'Delete ' + ed.name + '? They are removed from the tracker and from the sheet at the next backup.',
+    delWith(this, 'Delete customer', 'Delete ' + ed.name + '? They are removed from the tracker.',
       function () { return api('deleteCustomer', { row: ed.row, orig: ed.id }); },
       function () { toast(ed.name + ' deleted.'); editCust = null; $('cust-form').reset(); setCustMode(); go('customers'); });
   });
@@ -1783,7 +1721,7 @@ label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
   function restoreTo(h, btn) {
     if (busy || !window.confirm('Put everything back as it was after \u201c' + h.message + '\u201d (' + when(h.when) + ')? The restore is saved as a change, so it can be undone.')) return;
     busy = true; btn.disabled = true;
-    api('restore', { hash: h.hash }).then(function () {
+    api('restore', { id: h.id }).then(function () {
       busy = false; toast('Restored. It is saved in the history, so it can be undone.');
       return load().then(loadHistory);
     }).catch(function (err) { busy = false; btn.disabled = false; toast(errText(err, true), true); });

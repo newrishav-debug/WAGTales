@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
 """WAGTales tracker: the app that runs on this Mac.
 
-Serves the tracker page at http://127.0.0.1:8765 and keeps the data in CSV files in
-the data folder (default ~/WAGTales/data). Every change is committed to a git
-repository in that folder, so the page can show the history and restore any point.
-
-When the Google Sheet backup is set up, the whole dataset and a dashboard report
-are copied to the WAGTales Investment sheet after each change, through the Apps
-Script web app in apps-script.gs. The sheet is a copy; this app is the source.
-The app also shows Mac notifications for returns that are due and money not sent.
+Serves the tracker page at http://127.0.0.1:8765 and keeps everything, contract files
+included, in one SQLite database in the data folder (default ~/WAGTales/data). Every
+change is recorded in that database, so the page can show the history and restore any
+point. When a backup folder is set, a copy of the database is saved there after each
+change. The app also shows Mac notifications for returns that are due and money not sent.
 
     python3 server.py [--data DIR] [--port 8765]
-    python3 server.py --import FILE.json   fill empty CSVs from sheet values
-    python3 server.py --restore            fill empty CSVs from the Google Sheet backup
+    python3 server.py --import FILE.json   fill an empty database from a JSON file of records
+    python3 server.py --restore FILE.db    fill an empty data folder from a backup copy
 
 Standard library only, compatible with the /usr/bin/python3 (3.9) that launchd runs.
 """
 import argparse
 import base64
 import calendar
-import csv
 import datetime as dt
 import hashlib
 import json
@@ -27,42 +23,36 @@ import math
 import mimetypes
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import traceback
-import urllib.error
-import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote, unquote, urlparse
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
-SCRIPT_VERSION = 4   # the oldest apps-script.gs that still works
-LATEST_SCRIPT = 5    # the version in this folder: adds the Customers tab and contract downloads
 MAX_CONTRACT = 15 * 1024 * 1024
 MAX_BODY = 25 * 1024 * 1024
 CONTRACT_EXTS = ('.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png')
 CHANGED = 'The data changed since the page loaded. Refresh and try again.'
-DATA_FORMAT = 'Data format: '  # commits that change the CSV columns; history cannot go back past them
+DB_NAME = 'wagtales.db'
+DB_VERSION = 1
+KEEP_BACKUPS = 30  # daily copies kept in the backup folder
+BACKUP_FILE = re.compile(r'^wagtales-\d{4}-\d\d-\d\d\.db$')
 
-# ---------- CSV files: input columns only, ISO dates, plain numbers ----------
-FILES = {
-    'cust': ('customers.csv', ['id', 'name', 'phone', 'notes']),
-    'arr': ('arrangements.csv', ['id', 'customer_id', 'label', 'type', 'term_months', 'projection', 'cycle_profit',
-                                 'contract_file', 'contract_url']),
-    'deals': ('deals.csv', ['deal_no', 'arrangement_id', 'status', 'investment_date', 'mrp', 'selling_price',
+# ---------- database tables: input columns only, ISO dates, plain numbers, all kept as text ----------
+TABLES = {
+    'cust': ('customers', ['id', 'name', 'phone', 'notes']),
+    'arr': ('arrangements', ['id', 'customer_id', 'label', 'type', 'term_months', 'projection', 'cycle_profit',
+                                 'contract_file']),
+    'deals': ('deals', ['deal_no', 'arrangement_id', 'status', 'investment_date', 'mrp', 'selling_price',
                             'distributor_price', 'invested_amount', 'amount_sent', 'transaction_no', 'return_type',
                             'tentative_return_date', 'logistics', 'return_received', 'notes', 'received_date']),
-    'reinv': ('reinvestments.csv', ['date', 'source_deal_no', 'amount', 'destination_deal_no', 'destination',
+    'reinv': ('reinvestments', ['date', 'source_deal_no', 'amount', 'destination_deal_no', 'destination',
                                     'expected_return_date', 'return_received', 'notes']),
-}
-# the first format (21.10.2026), upgraded on start
-OLD_COLS = {
-    'arr': ['id', 'customer', 'type', 'term_months', 'contract_file', 'contract_url'],
-    'deals': FILES['deals'][1][:-1],
-    'reinv': ['date', 'source_deal_no', 'amount', 'destination', 'expected_return_date', 'return_received', 'notes'],
 }
 PROJECTIONS = ['latest', 'fixed', 'none']
 FIELD_NAMES = {'deal_no': 'deal #', 'arrangement_id': 'arrangement', 'investment_date': 'date', 'mrp': 'MRP',
@@ -70,9 +60,9 @@ FIELD_NAMES = {'deal_no': 'deal #', 'arrangement_id': 'arrangement', 'investment
                'cycle_profit': 'profit per cycle', 'contract_file': 'contract', 'source_deal_no': 'source deal',
                'destination_deal_no': 'destination', 'expected_return_date': 'expected return date'}
 
-# ---------- the sheet-shaped view: tabs and columns as in the Google Sheet. Kinds: t text, n number, d date ----------
-# The first columns of each tab keep the original sheet layout; later additions go on the end.
-SHEET = {
+# ---------- the columns the page reads by position. Kinds: t text, n number, d date ----------
+# Later additions go on the end.
+COLUMNS = {
     'cust': ('Customers', [('ID', 't'), ('Name', 't'), ('Phone', 't'), ('Notes', 't'), ('Arrangements', 'n'), ('Deals', 'n')]),
     'arr': ('Arrangements', [('ID', 't'), ('Customer', 't'), ('Type', 't'), ('Term (months)', 'n'), ('Start Date', 'd'),
                              ('End Date', 'd'), ('Deals', 'n'), ('Agreed Return', 'n'), ('Received (net of logistics)', 'n'),
@@ -93,14 +83,6 @@ class Refused(Exception):
     """A change the app will not make. The message is shown to the user."""
 
 
-class BackupError(Exception):
-    """The Google Sheet backup did not work. The message is shown to the user."""
-
-    def __init__(self, message, retry=False):
-        super().__init__(message)
-        self.retry = retry  # Google sometimes fails one request and answers the next
-
-
 # ---------- values ----------
 def num(v):
     if v is None or isinstance(v, bool):
@@ -119,7 +101,7 @@ def num(v):
 
 
 def canon(n):
-    """a number as the CSV stores it: 12345, 0.5"""
+    """a number as the database stores it: 12345, 0.5"""
     if n is None:
         return ''
     if float(n).is_integer():
@@ -128,7 +110,7 @@ def canon(n):
 
 
 def typed(s):
-    """CSV number text -> int or float, or '' when empty"""
+    """stored number text -> int or float, or '' when empty"""
     n = num(s)
     if n is None:
         return ''
@@ -149,7 +131,7 @@ def fmt_date(iso):
 
 
 def parse_date(s):
-    """dd.mm.yyyy, M/D/YYYY, yyyy-mm-dd or a sheet day number -> ISO date, or None"""
+    """dd.mm.yyyy, M/D/YYYY, yyyy-mm-dd -> ISO date, or None"""
     s = str(s if s is not None else '').strip()
     try:
         m = re.match(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$', s)
@@ -161,15 +143,13 @@ def parse_date(s):
         m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', s)
         if m:
             return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
-        if re.match(r'^\d{5}$', s):
-            return (dt.date(1899, 12, 30) + dt.timedelta(days=int(s))).isoformat()
     except ValueError:
         return None
     return None
 
 
 def edate(iso, months):
-    """the sheet's EDATE: same day k months later, clamped to the end of the month"""
+    """same day k months later, clamped to the end of the month"""
     d = dt.date.fromisoformat(iso)
     k = d.month - 1 + months
     y, m = d.year + k // 12, k % 12 + 1
@@ -191,36 +171,6 @@ def next_id(prefix, rows):
         if m:
             n = max(n, int(m.group(1)))
     return '%s-%02d' % (prefix, n + 1)
-
-
-def split_name(text):
-    """'Sample Breeder (litter)' -> ('Sample Breeder', 'litter')"""
-    m = re.match(r'^(.*\S)\s*\(([^()]*)\)\s*$', text or '')
-    return (m.group(1).strip(), m.group(2).strip()) if m else ((text or '').strip(), '')
-
-
-def attach_customers(arrs, customers):
-    """turn each arrangement's customer text into a customer record plus a label, reusing customers by name"""
-    by_name = {c['name'].lower(): c for c in customers}
-    for a in arrs:
-        if 'customer' not in a:
-            continue
-        name, label = split_name(a.pop('customer'))
-        a.setdefault('label', label)
-        if not a['label']:
-            a['label'] = label
-        c = by_name.get(name.lower())
-        if not c:
-            c = {'id': next_id('CUS', customers), 'name': name, 'phone': '', 'notes': ''}
-            customers.append(c)
-            by_name[name.lower()] = c
-        a['customer_id'] = c['id']
-
-
-def dest_deal_of(text):
-    """'Deal #4, Sample Breeder (litter)' -> '4'"""
-    m = re.match(r'^\s*deal\s*#\s*(\d+)\b', text or '', re.I)
-    return m.group(1) if m else ''
 
 
 # ---------- checks on what the page sends ----------
@@ -268,147 +218,108 @@ def at_row(rows, row, key, orig):
 
 
 def what_changed(name, old, new):
-    diff = [FIELD_NAMES.get(k, k.replace('_', ' ')) for k in FILES[name][1] if old.get(k, '') != new.get(k, '')]
+    diff = [FIELD_NAMES.get(k, k.replace('_', ' ')) for k in TABLES[name][1] if old.get(k, '') != new.get(k, '')]
     return ' (%s)' % ', '.join(diff) if diff else ' (nothing changed)'
 
 
-def read_csv(path):
-    with open(path, newline='', encoding='utf-8') as f:
-        r = csv.reader(f)
-        head = next(r, [])
-        return head, [dict(zip(head, row)) for row in r]
-
-
-# ---------- the data folder ----------
+# ---------- the database ----------
 class Store:
     def __init__(self, root):
         self.root = root
-        self.contracts = os.path.join(root, 'contracts')
+        self.path = os.path.join(root, DB_NAME)
         self.lock = threading.RLock()
-        os.makedirs(self.contracts, exist_ok=True)
-        upgraded = self._upgrade()
-        for name, (fn, cols) in FILES.items():
-            p = self.path(name)
-            if not os.path.exists(p):
-                self.save(name, [])
-                continue
-            head, _ = read_csv(p)
-            if head != cols:
-                raise SystemExit('%s has the columns %s, but the app expects %s.' % (p, head, cols))
-        self._git_init()
-        if upgraded:
-            self.commit(DATA_FORMAT + 'customers, received dates and linked reinvestments')
+        if not os.path.isfile(self.path):
+            self._create()
+        self.db = sqlite3.connect(self.path, check_same_thread=False)
+        version = self.db.execute('PRAGMA user_version').fetchone()[0]
+        if version != DB_VERSION:
+            raise SystemExit('%s is version %s, but the app expects %s.' % (self.path, version, DB_VERSION))
 
-    def _upgrade(self):
-        """moves CSV files from the first format to this one"""
-        old = {}
-        for name in OLD_COLS:
-            p = self.path(name)
-            if os.path.exists(p):
-                head, rows = read_csv(p)
-                if head == OLD_COLS[name]:
-                    old[name] = rows
-        if not old:
-            return False
-        if 'arr' in old:
-            cust = self.load('cust') if os.path.exists(self.path('cust')) else []
-            for a in old['arr']:
-                a.update(label='', projection='latest', cycle_profit='')
-            attach_customers(old['arr'], cust)
-            self.save('cust', cust)
-        for d in old.get('deals', []):
-            d['received_date'] = d['tentative_return_date'] if d['return_received'] == 'Yes' else ''
-        for r in old.get('reinv', []):
-            r['destination_deal_no'] = dest_deal_of(r['destination'])
-            if r['destination_deal_no']:
-                r['destination'] = ''
-        for name, rows in old.items():
-            self.save(name, rows)
-        return True
-
-    def path(self, name):
-        return os.path.join(self.root, FILES[name][0])
+    def _create(self):
+        # built under another name and renamed, so a failed start never leaves half a database
+        tmp = self.path + '.new'
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        self.db = sqlite3.connect(tmp)
+        try:
+            with self.db:
+                for table, cols in TABLES.values():
+                    self.db.execute('CREATE TABLE %s (%s)' % (table, ', '.join("%s TEXT NOT NULL DEFAULT \'\'" % c for c in cols)))
+                self.db.execute('CREATE TABLE contracts (name TEXT PRIMARY KEY, sha TEXT NOT NULL)')
+                # file contents are never removed, because the history can bring them back
+                self.db.execute('CREATE TABLE contract_data (sha TEXT PRIMARY KEY, data BLOB NOT NULL)')
+                self.db.execute('CREATE TABLE history (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, '
+                                'message TEXT NOT NULL, state TEXT NOT NULL)')
+                self.db.execute('PRAGMA user_version = %d' % DB_VERSION)
+                self._record('Start the WAGTales data history')
+            self.db.close()
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, self.path)
+        except BaseException:
+            self.db.close()
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
 
     def load(self, name):
-        cols = FILES[name][1]
-        with open(self.path(name), newline='', encoding='utf-8') as f:
-            return [{k: (r.get(k) or '') for k in cols} for r in csv.DictReader(f)]
+        table, cols = TABLES[name]
+        cur = self.db.execute('SELECT %s FROM %s ORDER BY rowid' % (', '.join(cols), table))
+        return [dict(zip(cols, r)) for r in cur]
 
     def snapshot(self):
         with self.lock:
-            return {n: self.load(n) for n in FILES}
+            return {n: self.load(n) for n in TABLES}
 
     def save(self, name, rows):
-        # write a temporary file and rename it over the old one, so a crash never leaves half a file
-        cols = FILES[name][1]
-        fd, tmp = tempfile.mkstemp(dir=self.root, prefix='.' + name + '-', suffix='.tmp')
-        try:
-            with os.fdopen(fd, 'w', newline='', encoding='utf-8') as f:
-                w = csv.DictWriter(f, fieldnames=cols)
-                w.writeheader()
-                for r in rows:
-                    w.writerow({k: r.get(k, '') for k in cols})
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, self.path(name))
-        except BaseException:
-            if os.path.exists(tmp):
-                os.unlink(tmp)
-            raise
+        table, cols = TABLES[name]
+        self.db.execute('DELETE FROM %s' % table)
+        self.db.executemany('INSERT INTO %s (%s) VALUES (%s)' % (table, ', '.join(cols), ', '.join('?' * len(cols))),
+                            [[r.get(k) or '' for k in cols] for r in rows])
+
+    # ---------- contract files ----------
+    def put_contract(self, name, data):
+        sha = hashlib.sha256(data).hexdigest()
+        self.db.execute('INSERT OR IGNORE INTO contract_data (sha, data) VALUES (?, ?)', (sha, data))
+        self.db.execute('INSERT OR REPLACE INTO contracts (name, sha) VALUES (?, ?)', (name, sha))
+
+    def drop_contract(self, name):
+        self.db.execute('DELETE FROM contracts WHERE name = ?', (name,))
+
+    def contract(self, name):
+        with self.lock:
+            r = self.db.execute('SELECT d.data FROM contracts c JOIN contract_data d ON d.sha = c.sha WHERE c.name = ?',
+                                (name,)).fetchone()
+        return bytes(r[0]) if r else None
 
     # ---------- history ----------
-    def _git(self, *args):
-        try:
-            return subprocess.run(['git', '-C', self.root] + list(args), capture_output=True, text=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
-            return None
-
-    def _git_init(self):
-        with open(os.path.join(self.root, '.gitignore'), 'w') as f:
-            f.write('settings.json\nreport.json\nreminders.json\n.*.tmp\n')
-        if os.path.isdir(os.path.join(self.root, '.git')):
-            return
-        r = self._git('init', '-q')
-        if r is None or r.returncode:
-            sys.stderr.write('git is not available, so changes are saved without history.\n')
-            return
-        self._git('config', 'user.name', 'WAGTales app')
-        self._git('config', 'user.email', 'wagtales@localhost')
-        self.commit('Start the WAGTales data history')
-
-    def commit(self, message):
-        self._git('add', '-A')
-        self._git('commit', '-q', '-m', message)
+    def _record(self, message):
+        state = dict((n, self.load(n)) for n in TABLES)
+        state['contracts'] = dict(self.db.execute('SELECT name, sha FROM contracts').fetchall())
+        state = json.dumps(state, sort_keys=True)
+        last = self.db.execute('SELECT state FROM history ORDER BY id DESC LIMIT 1').fetchone()
+        if not last or last[0] != state:  # a save that changed nothing is not a change
+            at = dt.datetime.now().astimezone().replace(microsecond=0).isoformat()
+            self.db.execute('INSERT INTO history (at, message, state) VALUES (?, ?, ?)', (at, message, state))
 
     def history(self, limit=200):
-        r = self._git('log', '-n', str(limit), '--format=%H%x1f%cI%x1f%s')
-        if r is None or r.returncode:
-            return []
-        out, ok = [], True
-        for i, line in enumerate(r.stdout.splitlines()):
-            h, when, msg = line.split('\x1f', 2)
-            start = msg.startswith('Start the')
-            out.append({'hash': h, 'when': when, 'message': msg, 'current': i == 0,
-                        'restorable': ok and i > 0 and not start})
-            if msg.startswith(DATA_FORMAT) or start:
-                ok = False  # older states use other columns
-        return out
+        with self.lock:
+            rows = self.db.execute('SELECT id, at, message FROM history ORDER BY id DESC LIMIT ?', (limit,)).fetchall()
+        return [{'id': i, 'when': at, 'message': msg, 'current': n == 0,
+                 'restorable': n > 0 and not msg.startswith('Start the')} for n, (i, at, msg) in enumerate(rows)]
 
     def restore(self, h):
         with self.lock:
-            entry = next((e for e in self.history() if e['hash'] == h), None)
+            entry = next((e for e in self.history() if str(e['id']) == str(h)), None)
             if not entry or not entry['restorable']:
                 raise Refused('That point in the history cannot be restored.')
-            added = self._git('diff', '--name-only', '-z', '--diff-filter=A', h, 'HEAD')
-            for f in (added.stdout.split('\0') if added else []):
-                p = os.path.join(self.root, f)
-                if f and os.path.isfile(p):
-                    os.remove(p)
-            r = self._git('checkout', h, '--', '.')
-            if r is None or r.returncode:
-                raise Refused('The history could not be read: %s' % (r.stderr.strip() if r else 'git is missing'))
+            state = json.loads(self.db.execute('SELECT state FROM history WHERE id = ?', (entry['id'],)).fetchone()[0])
             when = dt.datetime.fromisoformat(entry['when']).strftime('%d.%m.%Y %H:%M')
-            self.commit('Restore to how it was after "%s" (%s)' % (entry['message'], when))
+            with self.db:
+                for n in TABLES:
+                    self.save(n, state[n])
+                self.db.execute('DELETE FROM contracts')
+                self.db.executemany('INSERT INTO contracts (name, sha) VALUES (?, ?)', state['contracts'].items())
+                self._record('Restore to how it was after "%s" (%s)' % (entry['message'], when))
         return {}
 
     # ---------- changes ----------
@@ -416,34 +327,36 @@ class Store:
         fn = ACTIONS.get(action)
         if not fn:
             raise Refused('Unknown action.')
-        with self.lock:
-            snap = {n: self.load(n) for n in FILES}
+        with self.lock, self.db:  # all of a change is saved, or none of it
+            snap = {n: self.load(n) for n in TABLES}
             out, changed, message = fn(self, snap, p)
             for n in changed:
                 self.save(n, snap[n])
             if changed:
-                self.commit(message)
+                self._record(message)
         return out
 
     def seed(self, tabs, message):
-        with self.lock:
-            if any(self.load(n) for n in FILES):
-                raise SystemExit('The data folder already has records. Import only fills an empty one.')
-            for n in FILES:
+        with self.lock, self.db:
+            if self.has_records():
+                raise SystemExit('The database already has records. Import only fills an empty one.')
+            for n in TABLES:
                 self.save(n, tabs[n])
-            self.commit(message)
+            self._record(message)
 
-    def set_contract(self, arr_id, **fields):
-        """records a contract copy made by the backup: its Drive link, or a local file downloaded from Drive"""
+    def has_records(self):
         with self.lock:
-            rows = self.load('arr')
-            for a in rows:
-                if a['id'] == arr_id:
-                    a.update(fields)
-                    self.save('arr', rows)
-                    self.commit(('Link the contract for %s in Google Drive' if 'contract_url' in fields
-                                 else 'Download the contract for %s from Google Drive') % arr_id)
-                    return
+            return any(self.load(n) for n in TABLES)
+
+    def backup_to(self, path):
+        with self.lock:
+            dest = sqlite3.connect(path)
+            try:
+                self.db.backup(dest)
+                if dest.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+                    raise sqlite3.DatabaseError('the copy failed its check')
+            finally:
+                dest.close()
 
 
 # ---------- changes the page can make ----------
@@ -595,7 +508,7 @@ def add_arrangement(store, snap, p):
     if any(a['id'].lower() == aid.lower() for a in snap['arr']):
         raise Refused('The ID %s is already used.' % aid)
     f, added = arr_fields(snap, p)
-    f.update(id=aid, contract_file='', contract_url='')
+    f.update(id=aid, contract_file='')
     snap['arr'].append(f)
     return {'row': len(snap['arr']) + 1}, ['arr'] + added, 'Add arrangement ' + aid
 
@@ -638,19 +551,11 @@ def upload_contract(store, snap, p):
     if ext not in CONTRACT_EXTS:
         raise Refused('Contracts must be a PDF, a Word file or a photo (JPG or PNG).')
     name = contract_name(a, arr_names(snap)[a['id']], ext)
-    write_contract(store, name, data)
-    old = a['contract_file']
-    if old and old != name and os.path.isfile(os.path.join(store.contracts, old)):
-        os.remove(os.path.join(store.contracts, old))
-    a.update(contract_file=name, contract_url='')  # the backup copies it to Drive and fills the link
+    store.put_contract(name, data)
+    if a['contract_file'] and a['contract_file'] != name:
+        store.drop_contract(a['contract_file'])
+    a['contract_file'] = name
     return {'row': i + 2, 'url': '/contracts/' + quote(name)}, ['arr'], 'Save the contract for ' + a['id']
-
-
-def write_contract(store, name, data):
-    fd, tmp = tempfile.mkstemp(dir=store.contracts, prefix='.upload-', suffix='.tmp')
-    with os.fdopen(fd, 'wb') as f:
-        f.write(data)
-    os.replace(tmp, os.path.join(store.contracts, name))
 
 
 def reinv_fields(snap, p):
@@ -714,7 +619,7 @@ ACTIONS = {
 }
 
 
-# ---------- the sheet's tabs, with its formula columns worked out here ----------
+# ---------- the tables, with their worked-out columns ----------
 def arr_names(snap):
     """arrangement ID -> the name shown for it: the customer, with the label in brackets"""
     custs = {c['id']: c['name'] for c in snap['cust']}
@@ -725,7 +630,7 @@ def arr_names(snap):
     return out
 
 
-def build(snap, for_sheet=False):
+def build(snap):
     names = arr_names(snap)
     deals = []
     for d in snap['deals']:
@@ -744,10 +649,7 @@ def build(snap, for_sheet=False):
         dates = [r[4] for r in mine if r[4]]
         start = min(dates) if dates else ''
         term = typed(a['term_months'])
-        if for_sheet:
-            link = a['contract_url'] or a['contract_file']
-        else:
-            link = '/contracts/' + quote(a['contract_file']) if a['contract_file'] else a['contract_url']
+        link = '/contracts/' + quote(a['contract_file']) if a['contract_file'] else ''
         arrs.append([
             a['id'], names[a['id']], a['type'], term, start, edate(start, int(term)) if start and term else '',
             len(mine), sum(r[13] for r in mine), sum(r[16] or 0 for r in mine if r[17] == 'Yes'),
@@ -774,65 +676,13 @@ def display(tabs):
     """rows as the page shows them: a header row, then dd.mm.yyyy dates and 1,234 numbers"""
     out = {}
     for name, rows in tabs.items():
-        cols = SHEET[name][1]
+        cols = COLUMNS[name][1]
         out[name] = [[c[0] for c in cols]] + [
             [fmt_date(v) if k == 'd' else fmt_num(v) if k == 'n' else v for v, (_, k) in zip(r, cols)] for r in rows]
     return out
 
 
-def mirror(snap):
-    """what the backup writes into each tab of the Google Sheet"""
-    tabs = build(snap, for_sheet=True)
-    return {name: {'tab': SHEET[name][0], 'head': [c[0] for c in SHEET[name][1]],
-                   'kinds': [c[1] for c in SHEET[name][1]], 'rows': rows} for name, rows in tabs.items()}
-
-
-def from_sheet(values):
-    """sheet display values ({cust, arr, deals, reinv}, each with its header row) -> CSV rows.
-    Reads the current layout and the first one (no Customers tab, fewer columns)."""
-    def rows(v, ok):
-        out = []
-        for r in (v or [])[1:]:
-            r = [str(x if x is not None else '').strip() for x in r] + [''] * 24
-            if ok(r):
-                out.append(r)
-        return out
-
-    def n(s):
-        return canon(num(s))
-
-    def d(s):
-        return parse_date(s) or ''
-
-    cust = [{'id': r[0], 'name': r[1], 'phone': r[2], 'notes': r[3]} for r in rows(values.get('cust'), lambda r: r[0])]
-    known = {c['id'] for c in cust}
-    arr = []
-    for r in rows(values.get('arr'), lambda r: r[0]):
-        a = {'id': r[0], 'type': r[2], 'term_months': n(r[3]), 'projection': r[13] if r[13] in PROJECTIONS else 'latest',
-             'cycle_profit': n(r[14]), 'contract_file': '' if r[10].startswith('http') else r[10],
-             'contract_url': r[10] if r[10].startswith('http') else ''}
-        if r[11] in known:
-            a.update(customer_id=r[11], label=r[12])
-        else:
-            a['customer'] = r[1]
-        arr.append(a)
-    attach_customers(arr, cust)
-    deals = [{'deal_no': n(r[0]), 'arrangement_id': r[1], 'status': r[3] or 'Active', 'investment_date': d(r[4]),
-              'mrp': n(r[5]), 'selling_price': n(r[6]), 'distributor_price': n(r[7]), 'invested_amount': n(r[9]),
-              'amount_sent': r[10] or 'No', 'transaction_no': r[11], 'return_type': r[12] or 'Profit Only',
-              'tentative_return_date': d(r[14]), 'logistics': n(r[15]), 'return_received': r[17] or 'No',
-              'notes': r[18], 'received_date': d(r[20]) or (d(r[14]) if r[17] == 'Yes' else '')}
-             for r in rows(values.get('deals'), lambda r: r[0])]
-    reinv = []
-    for r in rows(values.get('reinv'), lambda r: r[0] or r[2]):
-        dest_no = n(r[7]) or dest_deal_of(r[3])
-        reinv.append({'date': d(r[0]), 'source_deal_no': n(r[1]), 'amount': n(r[2]), 'destination_deal_no': dest_no,
-                      'destination': '' if dest_no else r[3], 'expected_return_date': d(r[4]),
-                      'return_received': r[5] or 'No', 'notes': r[6]})
-    return {'cust': cust, 'arr': arr, 'deals': deals, 'reinv': reinv}
-
-
-# ---------- settings: backup connection and reminders ----------
+# ---------- settings: backup folder and reminders ----------
 class Settings:
     def __init__(self, root):
         self.path = os.path.join(root, 'settings.json')
@@ -858,116 +708,71 @@ class Settings:
             return s
 
 
-def connected(s):
-    return bool(s.get('url') and s.get('key'))
-
-
-# ---------- Google Sheet backup ----------
+# ---------- backup folder ----------
 def now_text():
     return dt.datetime.now().replace(microsecond=0).isoformat()
 
 
 class Backup:
-    def __init__(self, store, root, delay=3.0, settings=None):
+    def __init__(self, store, root, delay=3.0, settings=None, today=dt.date.today):
         self.store = store
+        self.root = root
         self.settings = settings or Settings(root)
-        self.report_path = os.path.join(root, 'report.json')
         self.delay = delay
-        self.retry_wait = 3.0
+        self.today = today
         self.cond = threading.Condition()
         self.wanted = False
-        self.force = False
-        self.sent = None
-        self.script = None  # the version the sheet script last reported
         self.status = {'state': 'idle', 'last': '', 'error': ''}
-        try:
-            with open(self.report_path, encoding='utf-8') as f:
-                self.report = json.load(f)
-        except (OSError, ValueError):
-            self.report = None
+
+    def folder(self):
+        return self.settings.get().get('backup_dir', '')
 
     def public(self):
-        s = self.settings.get()
-        out = dict(self.status, configured=connected(s), url=s.get('url', ''), notice='')
-        if not connected(s):
+        folder = self.folder()
+        out = dict(self.status, configured=bool(folder), folder=folder)
+        if not folder:
             out['state'] = 'off'
-        elif self.script and self.script < LATEST_SCRIPT:
-            out['notice'] = ('The sheet script is one version behind, so the Customers tab is not copied and Drive '
-                             'contracts are not downloaded. Copy the script again, paste it into Apps Script, save, '
-                             'and deploy a new version. The key stays the same.')
         return out
 
-    def call(self, s, action, payload=None):
+    def write(self, folder):
+        """saves today's copy in the folder, replacing the one from earlier today, and removes the oldest"""
+        os.makedirs(folder, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=folder, prefix='.wagtales-', suffix='.tmp')
+        os.close(fd)
         try:
-            return self._call(s, action, payload)
-        except BackupError as e:
-            if not e.retry:
-                raise
-            time.sleep(self.retry_wait)
-            return self._call(s, action, payload)
+            self.store.backup_to(tmp)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, os.path.join(folder, 'wagtales-%s.db' % self.today().isoformat()))
+        except BaseException:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
+        copies = sorted(f for f in os.listdir(folder) if BACKUP_FILE.match(f))
+        for f in copies[:-KEEP_BACKUPS]:
+            os.remove(os.path.join(folder, f))
 
-    def _call(self, s, action, payload):
-        body = dict(payload or {}, action=action, key=s['key'])
-        req = urllib.request.Request(s['url'], data=json.dumps(body).encode('utf-8'), method='POST',
-                                     headers={'Content-Type': 'text/plain;charset=utf-8'})
+    def save_settings(self, folder):
+        folder = os.path.expanduser(v_text(folder).strip())
+        if not folder:
+            self.settings.update(backup_dir='')
+            return {'sync': self.public()}
+        if not os.path.isabs(folder):
+            raise Refused('Enter the full path of the folder, starting with / or ~/')
+        folder = os.path.abspath(folder)
+        if os.path.commonpath([folder, os.path.abspath(self.root)]) == os.path.abspath(self.root):
+            raise Refused('Choose a folder outside the data folder, or the backup is lost along with the data.')
         try:
-            # Apps Script answers with a redirect; urllib follows it with a GET, which is what Google expects
-            with urllib.request.urlopen(req, timeout=120) as r:
-                text = r.read().decode('utf-8', 'replace')
-        except urllib.error.HTTPError as e:
-            raise BackupError('Google answered with error %d. Check the web app URL, and that it is deployed '
-                              'with access for Anyone.' % e.code, retry=e.code >= 500)
-        except (urllib.error.URLError, OSError):
-            raise BackupError('Could not reach Google. Check the internet connection.', retry=True)
-        try:
-            j = json.loads(text)
-        except ValueError:
-            raise BackupError('That web app URL did not answer like the backup script. Check it is the /exec URL '
-                              'from Deploy, with access set to Anyone.')
-        if not j.get('ok'):
-            err = str(j.get('error') or 'an error')
-            if err == 'bad_key':
-                raise BackupError('The key does not match the one in the sheet script. Paste the key from setup.', retry=True)
-            if err == 'Unknown action.':
-                raise BackupError('The sheet script is out of date. Paste the new script into Apps Script and '
-                                  'deploy a new version.')
-            raise BackupError('The sheet script reported: ' + err)
-        if (j.get('version') or 0) < SCRIPT_VERSION:
-            raise BackupError('The sheet script is out of date. Paste the new script into Apps Script and deploy '
-                              'a new version.')
-        self.script = j.get('version')
-        return j
-
-    def save_settings(self, url, key):
-        url, key = v_text(url).strip(), v_text(key).strip()
-        if not re.match(r'^https://script\.google(usercontent)?\.com/', url):
-            raise Refused('Paste the web app URL from Deploy. It starts with https://script.google.com/')
-        key = key or self.settings.get().get('key', '')
-        if len(key) < 16:
-            raise Refused('Paste the key from the execution log after running setup.')
-        try:
-            self.call({'url': url, 'key': key}, 'ping')
-        except BackupError as e:
-            raise Refused(str(e))
-        self.settings.update(url=url, key=key)
-        self.request(force=True)
+            self.write(folder)
+        except (OSError, sqlite3.Error) as e:
+            raise Refused('Could not save a backup there: %s' % e)
+        self.settings.update(backup_dir=folder)
+        self.status = {'state': 'ok', 'last': now_text(), 'error': ''}
         return {'sync': self.public()}
 
-    def set_report(self, report):
-        if not isinstance(report, dict) or not isinstance(report.get('rows'), list):
-            raise Refused('The report was not readable.')
-        if report != self.report:
-            self.report = report
-            with open(self.report_path, 'w', encoding='utf-8') as f:
-                json.dump(report, f)
-            self.request()
-        return {'sync': self.public()}
-
-    def request(self, force=False):
+    def request(self):
         with self.cond:
             self.wanted = True
-            self.force = self.force or force
-            if connected(self.settings.get()):
+            if self.folder():
                 self.status = dict(self.status, state='pending')
             self.cond.notify()
 
@@ -982,59 +787,45 @@ class Backup:
                     if not self.cond.wait(timeout=900) and self.status['state'] == 'error':
                         self.wanted = True
                 self.cond.wait(timeout=self.delay)  # let a burst of changes settle into one backup
-                self.wanted, force, self.force = False, self.force, False
+                self.wanted = False
             try:
-                self.run(force)
+                self.run()
             except Exception as e:  # keep the backup thread alive whatever happens
                 traceback.print_exc()
                 self.status = dict(self.status, state='error', error='Unexpected error: %s' % e)
 
-    def run(self, force=False):
-        s = self.settings.get()
-        if not connected(s):
+    def run(self):
+        folder = self.folder()
+        if not folder:
             self.status = dict(self.status, state='off')
             return
         try:
-            if self.script is None:
-                self.call(s, 'ping')  # learn which script version is deployed
-            self._upload_contracts(s)
-            payload = mirror(self.store.snapshot())
-            payload['report'] = self.report
-            digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode('utf-8')).hexdigest()
-            if force or digest != self.sent:
-                self.call(s, 'sync', payload)
-                self.sent = digest
-            if self.script >= LATEST_SCRIPT:
-                self._download_contracts(s)
+            self.write(folder)
             self.status = {'state': 'ok', 'last': now_text(), 'error': ''}
-        except BackupError as e:
-            self.status = dict(self.status, state='error', error=str(e))
+        except (OSError, sqlite3.Error) as e:
+            self.status = dict(self.status, state='error', error='Could not save a backup in %s: %s' % (folder, e))
 
-    def _upload_contracts(self, s):
-        """copies contracts added in the app to the WAGTales Contracts folder in Drive"""
-        for a in self.store.snapshot()['arr']:
-            local = os.path.join(self.store.contracts, a['contract_file']) if a['contract_file'] else ''
-            if local and os.path.isfile(local) and not a['contract_url']:
-                with open(local, 'rb') as f:
-                    data = base64.b64encode(f.read()).decode('ascii')
-                j = self.call(s, 'saveContract', {'name': a['contract_file'], 'data': data,
-                                                  'mimeType': mimetypes.guess_type(local)[0] or 'application/octet-stream'})
-                if j.get('url'):
-                    self.store.set_contract(a['id'], contract_url=j['url'])
 
-    def _download_contracts(self, s):
-        """keeps a copy on this Mac of contracts that are only in Drive"""
-        snap = self.store.snapshot()
-        names = arr_names(snap)
-        for a in snap['arr']:
-            local = os.path.join(self.store.contracts, a['contract_file']) if a['contract_file'] else ''
-            if a['contract_url'] and not (local and os.path.isfile(local)):
-                j = self.call(s, 'getContract', {'url': a['contract_url']})
-                ext = os.path.splitext(j.get('name') or '')[1].lower()
-                if j.get('data') and ext in CONTRACT_EXTS:
-                    name = contract_name(a, names[a['id']], ext)
-                    write_contract(self.store, name, base64.b64decode(j['data']))
-                    self.store.set_contract(a['id'], contract_file=name)
+def restore_backup(src, root):
+    """fills an empty data folder from a backup copy"""
+    try:
+        db = sqlite3.connect('file:%s?mode=ro' % quote(os.path.abspath(src)), uri=True)
+        ok = db.execute('PRAGMA quick_check').fetchone()[0] == 'ok' and db.execute('PRAGMA user_version').fetchone()[0] == DB_VERSION
+    except sqlite3.Error as e:
+        raise SystemExit('%s is not a WAGTales backup: %s' % (src, e))
+    if not ok:
+        raise SystemExit('%s is not a WAGTales backup this version can read.' % src)
+    store = Store(root)
+    if store.has_records():
+        raise SystemExit('The data folder already has records. Restore only fills an empty one.')
+    store.db.close()
+    tmp = store.path + '.new'
+    dest = sqlite3.connect(tmp)
+    db.backup(dest)
+    dest.close()
+    db.close()
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, store.path)
 
 
 # ---------- Mac notifications ----------
@@ -1071,7 +862,7 @@ class Reminders:
                 out.append(('sent:%s' % n, 'Deal #%s, %s: the money is not marked as sent yet.' % (n, name)))
         b = self.backup.public()
         if b['configured'] and b['state'] == 'error':
-            out.append(('backup', 'The Google Sheet backup is failing. Open the tracker to see why.'))
+            out.append(('backup', 'The backup is failing. Open the tracker to see why.'))
         return out
 
     def check(self):
@@ -1154,8 +945,6 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in ('/', '/index.html'):
             return self.send_file(os.path.join(APP_DIR, 'index.html'), 'text/html; charset=utf-8')
-        if path == '/apps-script.gs':
-            return self.send_file(os.path.join(APP_DIR, 'apps-script.gs'), 'text/plain; charset=utf-8')
         if path == '/api/data':
             out = display(build(store.snapshot()))
             out.update(ok=True, sync=backup.public(), reminders={'on': self.server.reminders.on()})
@@ -1166,10 +955,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, {'ok': True, 'history': store.history()})
         if path.startswith('/contracts/'):
             name = unquote(path[len('/contracts/'):])
-            if name and name == os.path.basename(name) and not name.startswith('.'):
-                p = os.path.join(store.contracts, name)
-                if os.path.isfile(p):
-                    return self.send_file(p, mimetypes.guess_type(name)[0] or 'application/octet-stream')
+            body = store.contract(name)
+            if body is not None:
+                return self.send(200, body, mimetypes.guess_type(name)[0] or 'application/octet-stream')
         self.send(404, {'ok': False, 'error': 'Not found.'})
 
     def do_POST(self):
@@ -1191,18 +979,16 @@ class Handler(BaseHTTPRequestHandler):
         store, backup = self.server.store, self.server.backup
         action = p.get('action')
         try:
-            if action == 'report':
-                out = backup.set_report(p.get('report'))
-            elif action == 'syncNow':
-                backup.request(force=True)
+            if action == 'syncNow':
+                backup.request()
                 out = {'sync': backup.public()}
             elif action == 'saveSettings':
-                out = backup.save_settings(p.get('url'), p.get('key'))
+                out = backup.save_settings(p.get('folder'))
             elif action == 'setReminders':
                 backup.settings.update(notify=bool(p.get('on')))
                 out = {'reminders': {'on': self.server.reminders.on()}}
             elif action == 'restore':
-                out = store.restore(str(p.get('hash') or ''))
+                out = store.restore(str(p.get('id') or ''))
                 backup.request()
             else:
                 out = store.act(action, p)
@@ -1218,26 +1004,23 @@ class Handler(BaseHTTPRequestHandler):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description='WAGTales tracker')
-    ap.add_argument('--data', default=os.path.expanduser('~/WAGTales/data'), help='folder for the CSV files')
+    ap.add_argument('--data', default=os.path.expanduser('~/WAGTales/data'), help='folder for the database')
     ap.add_argument('--host', default='127.0.0.1')
     ap.add_argument('--port', type=int, default=8765)
-    ap.add_argument('--import', dest='import_file', help='fill an empty data folder from a JSON file of sheet values')
-    ap.add_argument('--restore', action='store_true', help='fill an empty data folder from the Google Sheet backup')
+    ap.add_argument('--import', dest='import_file', help='fill an empty database from a JSON file of records')
+    ap.add_argument('--restore', help='fill an empty data folder from a backup copy')
     args = ap.parse_args(argv)
     os.makedirs(args.data, exist_ok=True)
+    if args.restore:
+        restore_backup(args.restore, args.data)
+        print('Restored into', args.data, '- if the app is running, restart it with: bash install.sh')
+        return
     store = Store(args.data)
     backup = Backup(store, args.data)
     if args.import_file:
         with open(args.import_file, encoding='utf-8') as f:
-            store.seed(from_sheet(json.load(f)), 'Import from the Google Sheet')
+            store.seed(json.load(f), 'Import')
         print('Imported into', args.data)
-        return
-    if args.restore:
-        s = backup.settings.get()
-        if not connected(s):
-            raise SystemExit('The backup is not set up in this data folder (settings.json is missing).')
-        store.seed(from_sheet(backup.call(s, 'read')), 'Restore from the Google Sheet backup')
-        print('Restored into', args.data)
         return
     reminders = Reminders(store, backup, args.data)
     httpd = App((args.host, args.port), store, backup, reminders)
