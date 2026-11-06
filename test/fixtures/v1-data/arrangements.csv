@@ -1,0 +1,5 @@
+id,customer,type,term_months,contract_file,contract_url
+ARR-01,Sample Breeder,6-month recurring,6,,https://drive.google.com/file/d/1FakeContractFileOneXXXXXXXXXXXXX/view?usp=drivesdk
+ARR-02,Jane Doe,One-time,,,
+ARR-03,Sample Breeder (litter),4-month recurring,4,,https://drive.google.com/file/d/1FakeContractFileTwoXXXXXXXXXXXXX/view?usp=drivesdk
+ARR-04,Alex Kumar Example,3-month recurring,3,,

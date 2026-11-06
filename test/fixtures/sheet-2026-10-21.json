@@ -1,0 +1,21 @@
+{
+  "arr": [
+    ["ID", "Customer", "Type", "Term (months)", "Start Date", "End Date", "Deals", "Agreed Return", "Received (net of logistics)", "Outstanding (agreed)", "Contract"],
+    ["ARR-01", "Sample Breeder", "6-month recurring", "6", "28.08.2026", "28.02.2027", "2", "141,012", "65,730", "70,506", "https://drive.google.com/file/d/1FakeContractFileOneXXXXXXXXXXXXX/view?usp=drivesdk"],
+    ["ARR-02", "Jane Doe", "One-time", "", "29.09.2026", "", "1", "161,460", "159,960", "0", ""],
+    ["ARR-03", "Sample Breeder (litter)", "4-month recurring", "4", "04.10.2026", "04.02.2027", "1", "57,720", "0", "57,720", "https://drive.google.com/file/d/1FakeContractFileTwoXXXXXXXXXXXXX/view?usp=drivesdk"],
+    ["ARR-04", "Alex Kumar Example", "3-month recurring", "3", "18.10.2026", "18.01.2027", "1", "113,490", "0", "113,490", ""]
+  ],
+  "deals": [
+    ["Deal #", "Arrangement", "Customer", "Status", "Investment Date", "MRP", "Selling Price", "Distributor Price", "Profit", "Invested Amount", "Amount Sent", "Transaction No.", "Return Type", "Agreed Return", "Tentative Return Date", "Logistics", "Actual Return", "Return Received", "Notes", "Check"],
+    ["1", "ARR-01", "Sample Breeder", "Closed", "28.08.2026", "705,060", "545,355", "474,849", "70,506", "474,849", "Yes", "100000000001", "Profit Only", "70,506", "03.10.2026", "4,776", "65,730", "Yes", "", ""],
+    ["2", "ARR-02", "Jane Doe", "Closed", "29.09.2026", "207,000", "161,460", "134,550", "26,910", "134,460", "Yes", "100000000002", "Profit + Principal", "161,460", "07.10.2026", "1,500", "159,960", "Yes", "", "Invested differs from distributor price"],
+    ["3", "ARR-01", "Sample Breeder", "Active", "04.10.2026", "705,060", "545,355", "474,849", "70,506", "474,849", "Yes", "100000000001", "Profit Only", "70,506", "07.11.2026", "", "", "No", "Return expected soon.", ""],
+    ["4", "ARR-03", "Sample Breeder (litter)", "Active", "04.10.2026", "577,200", "432,900", "375,180", "57,720", "375,180", "Yes", "100000000003", "Profit Only", "57,720", "04.11.2026", "", "", "No", "Cycle 1 of 4. Litter order.", ""],
+    ["5", "ARR-04", "Alex Kumar Example", "Active", "18.10.2026", "873,000", "680,940", "567,450", "113,490", "567,450", "Yes", "100000000004\n100000000005", "Profit Only", "113,490", "30.11.2026", "", "", "No", "Seasonal order", ""]
+  ],
+  "reinv": [
+    ["Date", "Source Deal #", "Amount Rolled Over", "Destination", "Expected Return Date", "Return Received", "Notes"],
+    ["04.10.2026", "1", "65,730", "Deal #4, Sample Breeder (litter)", "", "No", "Deal 1 profit after 4,776 logistics. Covers 65,730 of deal 4's 375,180 investment."]
+  ]
+}

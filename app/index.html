@@ -1,0 +1,1806 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body { margin: 0; } img { max-width: 100%; }</style>
+<title>WAGTales Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231E3A5F'/%3E%3Ctext x='16' y='22' font-family='Helvetica,Arial,sans-serif' font-size='17' font-weight='700' fill='white' text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: calm portfolio view. Outlook figure + upcoming returns, a KPI strip, then charts in pairs. Data tabs are tables and forms. */
+:root {
+  --bg: #F5F6F8;
+  --surface: #FFFFFF;
+  --surface-2: #F9FAFB;
+  --ink: #121A26;
+  --ink-2: #3B4655;
+  --muted: #6A7585;
+  --line: #E4E8ED;
+  --grid: #EDF0F3;
+  --accent: #1E3A5F;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E8EEF6;
+  --r1: #184F95;
+  --r2: #2A78D6;
+  --r3: #86B6EF;
+  --mark: #7C8A9C;
+  --good: #17794A; --good-soft: #E3F3EA;
+  --warn: #8A5300; --warn-soft: #FBF0DC;
+  --bad: #B42318; --bad-soft: #FDE7E5;
+  --font: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1117; --surface: #151B23; --surface-2: #1A212B; --ink: #E8EDF3; --ink-2: #C3CCD7; --muted: #8C98A8; --line: #26303C; --grid: #1F2731;
+    --accent: #8FB3E8; --accent-ink: #0D1117; --accent-soft: #1C2A3D;
+    --r1: #86B6EF; --r2: #3987E5; --r3: #1C5CAB; --mark: #8494A8;
+    --good: #5CC795; --good-soft: #15302A; --warn: #E3A94F; --warn-soft: #362812; --bad: #FF8F86; --bad-soft: #3B1C1B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1117; --surface: #151B23; --surface-2: #1A212B; --ink: #E8EDF3; --ink-2: #C3CCD7; --muted: #8C98A8; --line: #26303C; --grid: #1F2731;
+  --accent: #8FB3E8; --accent-ink: #0D1117; --accent-soft: #1C2A3D;
+  --r1: #86B6EF; --r2: #3987E5; --r3: #1C5CAB; --mark: #8494A8;
+  --good: #5CC795; --good-soft: #15302A; --warn: #E3A94F; --warn-soft: #362812; --bad: #FF8F86; --bad-soft: #3B1C1B;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1440px; margin-inline: auto; padding-inline: 20px; padding-block: 24px 64px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .mark { width: 36px; height: 36px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; }
+.brand h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+.brand p { font-size: 12.5px; color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 14px; font-weight: 500; color: var(--ink); }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.small { padding: 5px 11px; font-size: 12.5px; }
+.btn:disabled { opacity: 0.55; cursor: progress; }
+.btn.danger { color: var(--bad); margin-left: auto; }
+.btn.danger:hover { border-color: var(--bad); }
+.btn.backup { display: inline-flex; align-items: center; gap: 7px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--mark); flex: none; }
+.dot.ok { background: var(--good); }
+.dot.err { background: var(--bad); }
+.dot.off { background: var(--warn); }
+.dot.busy { background: var(--r2); }
+a.btn { display: inline-block; text-decoration: none; }
+
+.tabs { display: flex; flex-wrap: nowrap; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 14px; color: var(--muted); font-weight: 500; margin-bottom: -1px; white-space: nowrap; flex: none; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab.add { margin-left: auto; color: var(--accent); }
+
+.panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 8px; }
+.panel-head h2 { font-size: 16px; font-weight: 600; }
+.panel-head p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+/* ---------- Overview ---------- */
+.ov { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.row { display: grid; gap: 18px; min-width: 0; }
+.row.a { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.row.b { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card h3 { font-size: 14px; font-weight: 600; }
+.card .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.eyebrow { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+
+.outlook .fig { font-size: 48px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.05; overflow-wrap: anywhere; }
+.outlook .lead { color: var(--ink-2); font-size: 13.5px; }
+.segbar { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: var(--grid); }
+.segbar i { display: block; height: 100%; min-width: 2px; }
+.seglegend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.seglegend div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.seglegend .k { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+.seglegend .k i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.seglegend .v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.seglegend .p { font-size: 12px; color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); }
+td.ret { min-width: 170px; }
+.rcell { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.rbar { width: 90px; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; flex: none; }
+.rbar i { display: block; height: 100%; background: var(--r1); border-radius: 3px; }
+.rcell span { min-width: 48px; text-align: right; font-weight: 600; }
+td .an { display: block; font-weight: 600; }
+td .as { display: block; font-size: 12px; color: var(--muted); }
+tr.total td { font-weight: 600; background: var(--surface-2); border-top: 1px solid var(--line); }
+.outlook .note { margin-top: auto; padding-top: 4px; }
+
+.uplist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.uplist li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.uplist .act { display: flex; justify-content: flex-end; min-width: 112px; }
+.uplist li:first-child { border-top: 0; padding-top: 2px; }
+.uplist .d { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 44px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); line-height: 1.1; }
+.uplist .d b { font-size: 16px; font-weight: 600; }
+.uplist .d span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.uplist .who { min-width: 0; }
+.uplist .who b { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uplist .who span { font-size: 12px; color: var(--muted); }
+.uplist .amt { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.uplist .amt span { display: block; }
+
+
+.stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.stack > .outlook { flex: 1; }
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.kpi { padding: 18px 20px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kpi + .kpi { border-left: 1px solid var(--line); }
+.kpi:nth-child(3) { border-left: 0; }
+.kpi:nth-child(n+3) { border-top: 1px solid var(--line); }
+.kpi .l { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.kpi .v { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; overflow-wrap: anywhere; }
+.kpi .c { font-size: 12.5px; color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.legend i.ln { width: 16px; height: 2px; border-radius: 2px; }
+.legend i.dash { width: 16px; height: 0; border-top: 2px dashed; background: none !important; border-radius: 0; }
+.cbox { position: relative; min-width: 0; width: 100%; }
+.cbox svg { display: block; overflow: visible; }
+.cbox text { font-family: var(--font); }
+details.tv { font-size: 12.5px; color: var(--muted); }
+details.tv summary { cursor: pointer; width: max-content; }
+details.tv .tablebox { margin-top: 8px; }
+.empty-chart { color: var(--muted); padding: 24px 0; text-align: center; }
+
+.arrs { display: flex; flex-direction: column; gap: 18px; }
+.arr { display: flex; flex-direction: column; gap: 7px; }
+.arr .h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.arr .h b { font-weight: 600; }
+.arr .h span { font-size: 12.5px; color: var(--muted); }
+.pips { display: flex; gap: 3px; height: 8px; }
+.pips i { flex: 1; border-radius: 3px; }
+.arr .f { font-size: 12.5px; color: var(--muted); }
+.arr .f b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.tip { position: fixed; z-index: 30; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14); min-width: 140px; max-width: 260px; }
+.tip .t { color: var(--muted); margin-bottom: 4px; }
+.tip .r { display: flex; align-items: center; gap: 8px; }
+.tip .r i { display: inline-block; width: 12px; height: 2px; flex: none; }
+.tip .r .n { color: var(--muted); flex: 1; }
+.tip .r b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Tables ---------- */
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--surface-2); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+td.note { white-space: normal; min-width: 200px; color: var(--muted); }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.pill.closed { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.proj { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+
+/* ---------- Forms ---------- */
+form.entry { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 780px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 16px 18px; align-items: start; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+label { font-size: 12.5px; font-weight: 500; line-height: 1.3; color: var(--ink-2); }
+label .opt { color: var(--muted); font-weight: 400; }
+input, select, textarea { display: block; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0 11px; height: 40px; width: 100%; min-width: 0; max-width: 100%; margin: 0; }
+input:hover, select:hover, textarea:hover { border-color: var(--muted); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input[type="date"] { -webkit-appearance: none; appearance: none; min-height: 40px; }
+input[type="number"], input.mono { font-variant-numeric: tabular-nums; }
+textarea { height: auto; padding: 9px 11px; resize: vertical; min-height: 68px; }
+input[readonly] { background: var(--surface-2); color: var(--muted); }
+td.acts { white-space: nowrap; }
+td.acts .btn + .btn { margin-left: 6px; }
+a.doclink { color: var(--accent); font-weight: 500; margin-right: 10px; }
+input[type="file"] { height: auto; padding: 8px 10px; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.preview { display: flex; flex-wrap: wrap; gap: 6px 24px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; color: var(--ink-2); }
+.preview b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.preview .flag { color: var(--warn); flex-basis: 100%; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.overlay { position: fixed; inset: 0; background: rgba(10, 14, 20, 0.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
+.dialog h2 { font-size: 16px; font-weight: 600; }
+.dialog.wide { max-width: 580px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 9px; color: var(--ink-2); font-size: 13px; }
+.steps a, .dialog .hint a { color: var(--accent); }
+.dialog details summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 500; width: max-content; }
+.dialog details .steps { margin-top: 10px; }
+.inline-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: 4px; vertical-align: middle; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); max-width: min(560px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 10px; background: var(--ink); color: var(--bg); font-size: 13px; z-index: 20; pointer-events: none; }
+.toast.error { background: var(--bad); color: #fff; }
+.banner { padding: 12px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); border: 1px solid var(--line); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.filters input { flex: 1 1 240px; max-width: 340px; }
+.filters select { width: auto; flex: 0 1 170px; }
+th.sort { cursor: pointer; user-select: none; }
+th.sort:hover { color: var(--ink); }
+th.sort[aria-sort="ascending"]::after { content: " \2191"; }
+th.sort[aria-sort="descending"]::after { content: " \2193"; }
+td.msg { white-space: normal; min-width: 280px; }
+td.txn { font-variant-numeric: tabular-nums; white-space: normal; min-width: 130px; }
+label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+label.check input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; }
+.attn { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.attn li { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); }
+.attn li:first-child { border-top: 0; padding-top: 0; }
+.attn .what { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.attn .what .pill { min-width: 76px; text-align: center; }
+.attn b { display: block; font-weight: 500; }
+.attn .as { display: block; font-size: 12px; color: var(--muted); }
+.statement { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: flex; flex-direction: column; gap: 20px; max-width: 1240px; }
+.statement th { white-space: normal; vertical-align: bottom; }
+.statement h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.st-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.st-head h2 { font-size: 22px; font-weight: 700; }
+.st-head .r { text-align: right; }
+.st-body { display: flex; flex-direction: column; gap: 22px; }
+.st-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.st-sum div { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+.st-sum span { display: block; font-size: 12px; color: var(--muted); }
+.st-sum b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+@media print {
+  body { background: #fff !important; }
+  .top, .tabs, .no-print, .toast, .tip, .banner, .overlay { display: none !important; }
+  .wrap { padding: 0; max-width: none; }
+  .statement { border: 0; padding: 0; max-width: none; }
+  .statement, .statement * { color: #000 !important; background: transparent !important; border-color: #bbb !important; }
+  .statement .tablebox { overflow: visible; }
+  .statement th, .statement td { padding: 6px 8px; white-space: normal; }
+}
+
+@media (max-width: 900px) {
+  .row.a, .row.b { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .uplist li { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .uplist .act { grid-column: 2 / -1; justify-content: flex-start; min-width: 0; }
+  .wrap { padding-inline: 16px; }
+  .outlook .fig { font-size: 40px; }
+  .seglegend { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .seglegend div { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .kpi { padding: 14px 16px; }
+  .kpi .v { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><span class="mark" aria-hidden="true">W</span><div><h1>WAGTales</h1><p>Investment tracker</p></div></div>
+    <div class="meta"><span id="updated">Not loaded yet</span><button class="btn small backup" id="conn-btn" type="button"><i class="dot" id="sync-dot"></i><span id="sync-text">Backup</span></button><a class="btn small" href="https://docs.google.com/spreadsheets/d/15KTdFGPKTQuRLtLUg4L3fFVz-boxhVVxLmm4Z5JZc9g/edit" target="_blank" rel="noopener">Open sheet</a><button class="btn small" id="refresh" type="button">Refresh</button></div>
+  </div>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="tabs" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">Dashboard</button>
+    <button class="tab" role="tab" data-tab="customers" aria-selected="false">Customers</button>
+    <button class="tab" role="tab" data-tab="arrangements" aria-selected="false">Arrangements</button>
+    <button class="tab" role="tab" data-tab="deals" aria-selected="false">Deals</button>
+    <button class="tab" role="tab" data-tab="reinvest" aria-selected="false">Reinvestments</button>
+    <button class="tab" role="tab" data-tab="history" aria-selected="false">History</button>
+  </div>
+
+  <section class="panel" id="p-overview">
+    <div class="ov" id="ov"></div>
+  </section>
+
+  <section class="panel" id="p-customers" hidden>
+    <div class="panel-head"><div><h2>Customers</h2><p>Everyone you fund, with their arrangements added up. Statement makes a summary to print or share.</p></div><button class="btn small" data-goto="add-cust" type="button">+ New customer</button></div>
+    <div class="tablebox" id="cust-box"></div>
+  </section>
+
+  <section class="panel" id="p-deals" hidden>
+    <div class="panel-head"><div><h2>Deals</h2><p>Use Edit to change a deal, or Mark received when a return comes in.</p></div><button class="btn small" data-goto="add-deal" type="button">+ Add deal</button></div>
+    <div class="filters" role="search">
+      <input id="f-q" type="search" placeholder="Search customer, deal #, notes or transaction" aria-label="Search deals">
+      <select id="f-status" aria-label="Status"><option value="">All statuses</option><option>Active</option><option>Closed</option></select>
+      <select id="f-ret" aria-label="Return"><option value="">Any return</option><option value="waiting">Waiting</option><option value="overdue">Overdue</option><option value="received">Received</option><option value="unsent">Money not sent</option></select>
+      <span class="hint" id="f-count" aria-live="polite"></span>
+    </div>
+    <div class="tablebox" id="deals-box"></div>
+  </section>
+
+  <section class="panel" id="p-arrangements" hidden>
+    <div class="panel-head"><div><h2>Arrangements</h2><p>One row per customer arrangement. Deals link to these by ID.</p></div><button class="btn small" data-goto="add-arr" type="button">+ New arrangement</button></div>
+    <div class="tablebox" id="arr-box"></div>
+  </section>
+
+  <section class="panel" id="p-reinvest" hidden>
+    <div class="panel-head"><div><h2>Reinvestments</h2><p>Profit rolled into other investments.</p></div><button class="btn small" data-goto="add-reinv" type="button">+ Add reinvestment</button></div>
+    <div class="tablebox" id="reinv-box"></div>
+  </section>
+
+  <section class="panel" id="p-history" hidden>
+    <div class="panel-head"><div><h2>History</h2><p>Every change saved on this Mac, newest first. Restore puts everything back as it was at that point. The restore is saved as a change too, so it can be undone.</p></div></div>
+    <div class="tablebox" id="hist-box"></div>
+  </section>
+
+  <section class="panel" id="p-statement" hidden>
+    <div class="panel-head no-print"><div><h2>Statement</h2><p>A summary of a customer&rsquo;s deals to print, or save as PDF from the print window.</p></div><div class="actions"><button class="btn small primary" id="st-print" type="button">Print or save as PDF</button><button class="btn small" data-goto="customers" type="button">Back</button></div></div>
+    <div class="statement" id="st-box"></div>
+  </section>
+
+  <section class="panel" id="p-add-cust" hidden>
+    <div class="panel-head"><div><h2 id="cust-title">New customer</h2><p id="cust-sub">Arrangements are made with a customer. One customer can have several.</p></div></div>
+    <form class="entry" id="cust-form" autocomplete="off">
+      <div class="grid">
+        <div class="field"><label for="cu-name">Name</label><input id="cu-name" required></div>
+        <div class="field"><label for="cu-phone">Phone <span class="opt">(optional)</span></label><input id="cu-phone" type="tel"></div>
+        <div class="field wide"><label for="cu-notes">Notes <span class="opt">(optional)</span></label><textarea id="cu-notes"></textarea></div>
+      </div>
+      <div class="actions"><button class="btn primary" type="submit" id="cu-submit">Add customer</button><button class="btn" type="button" data-goto="customers">Cancel</button><button class="btn danger" type="button" id="cu-delete" hidden>Delete customer</button></div>
+    </form>
+  </section>
+
+  <section class="panel" id="p-add-deal" hidden>
+    <div class="panel-head"><div><h2 id="deal-title">Add a deal</h2><p id="deal-sub">Customer, profit, agreed return and the check column fill in on their own.</p></div></div>
+    <form class="entry" id="deal-form" autocomplete="off">
+      <div class="grid">
+        <div class="field"><label for="d-arr">Arrangement</label><select id="d-arr" required></select><span class="hint" id="d-cust">Pick an arrangement.</span></div>
+        <div class="field"><label for="d-num">Deal #</label><input id="d-num" type="number" min="1" step="1" required></div>
+        <div class="field"><label for="d-status">Status</label><select id="d-status"><option>Active</option><option>Closed</option></select></div>
+        <div class="field"><label for="d-date">Investment date</label><input id="d-date" type="date" required></div>
+        <div class="field"><label for="d-mrp">MRP</label><input id="d-mrp" type="number" min="0" step="any" required></div>
+        <div class="field"><label for="d-sell">Selling price</label><input id="d-sell" type="number" min="0" step="any" required></div>
+        <div class="field"><label for="d-dist">Distributor price</label><input id="d-dist" type="number" min="0" step="any" required></div>
+        <div class="field"><label for="d-inv">Invested amount</label><input id="d-inv" type="number" min="0" step="any" required><span class="hint">Follows the distributor price until you change it.</span></div>
+        <div class="field"><label for="d-sent">Amount sent</label><select id="d-sent"><option>Yes</option><option>No</option></select></div>
+        <div class="field"><label for="d-txn">Transaction no.</label><input id="d-txn" class="mono" inputmode="numeric"></div>
+        <div class="field"><label for="d-rtype">Return type</label><select id="d-rtype"><option>Profit Only</option><option>Profit + Principal</option></select></div>
+        <div class="field"><label for="d-due">Tentative return date <span class="opt">(optional)</span></label><input id="d-due" type="date"></div>
+        <div class="field" id="f-logi-w" hidden><label for="d-logi">Logistics <span class="opt">(optional)</span></label><input id="d-logi" type="number" min="0" step="any"></div>
+        <div class="field" id="f-recv-w" hidden><label for="d-recv">Return received</label><select id="d-recv"><option>No</option><option>Yes</option></select></div>
+        <div class="field" id="f-rdate-w" hidden><label for="d-rdate">Received on</label><input id="d-rdate" type="date"></div>
+        <div class="field wide"><label for="d-notes">Notes <span class="opt">(optional)</span></label><textarea id="d-notes"></textarea></div>
+      </div>
+      <div class="preview" id="d-preview" aria-live="polite"></div>
+      <div class="actions"><button class="btn primary" type="submit" id="d-submit">Add deal</button><button class="btn" type="button" data-goto="deals">Cancel</button><button class="btn danger" type="button" id="d-delete" hidden>Delete deal</button></div>
+    </form>
+  </section>
+
+  <section class="panel" id="p-add-arr" hidden>
+    <div class="panel-head"><div><h2 id="arr-title">New arrangement</h2><p id="arr-sub">Start, end and the totals fill in from its deals.</p></div></div>
+    <form class="entry" id="arr-form" autocomplete="off">
+      <div class="grid">
+        <div class="field"><label for="a-id">ID</label><input id="a-id" class="mono" required></div>
+        <div class="field"><label for="a-custsel">Customer</label><select id="a-custsel"></select></div>
+        <div class="field" id="a-new-w" hidden><label for="a-newcust">New customer&rsquo;s name</label><input id="a-newcust"></div>
+        <div class="field"><label for="a-label">Label <span class="opt">(optional)</span></label><input id="a-label" placeholder="e.g. litter"><span class="hint">Tells apart two arrangements with the same customer.</span></div>
+        <div class="field"><label for="a-type">Type</label><select id="a-type"><option value="Recurring">Recurring</option><option value="One-time">One-time</option></select></div>
+        <div class="field"><label for="a-term">Term (months)</label><input id="a-term" type="number" min="1" max="120" step="1" placeholder="e.g. 3"><span class="hint" id="a-term-hint">Any number of months. One cycle is expected each month.</span></div>
+        <div class="field"><label for="a-proj">Projection</label><select id="a-proj"><option value="latest">Repeat the latest deal</option><option value="fixed">A fixed profit per cycle</option><option value="none">Don&rsquo;t project</option></select><span class="hint">How the dashboard estimates cycles not booked yet.</span></div>
+        <div class="field" id="a-cycle-w" hidden><label for="a-cycle">Profit per cycle</label><input id="a-cycle" type="number" min="0" step="any"><span class="hint">Before logistics, like the profit on a deal.</span></div>
+        <div class="field wide"><label for="a-file">Contract document <span class="opt">(optional)</span></label><input id="a-file" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"><span class="hint" id="a-file-hint">PDF, Word or a photo, up to 15 MB. It is kept on this Mac and copied to the WAGTales Contracts folder in Google Drive by the backup.</span></div>
+      </div>
+      <div class="actions"><button class="btn primary" type="submit" id="a-submit">Add arrangement</button><button class="btn" type="button" data-goto="arrangements">Cancel</button><button class="btn danger" type="button" id="a-delete" hidden>Delete arrangement</button></div>
+    </form>
+  </section>
+
+  <section class="panel" id="p-add-reinv" hidden>
+    <div class="panel-head"><div><h2 id="reinv-title">Add a reinvestment</h2><p id="reinv-sub">Records profit rolled into another investment.</p></div></div>
+    <form class="entry" id="reinv-form" autocomplete="off">
+      <div class="grid">
+        <div class="field"><label for="r-date">Date</label><input id="r-date" type="date" required></div>
+        <div class="field"><label for="r-deal">Source deal #</label><select id="r-deal" required></select></div>
+        <div class="field"><label for="r-amt">Amount rolled over</label><input id="r-amt" type="number" min="0" step="any" required></div>
+        <div class="field"><label for="r-destdeal">Went into</label><select id="r-destdeal"></select></div>
+        <div class="field" id="r-dest-w"><label for="r-dest">Destination</label><input id="r-dest" placeholder="Where the money went"></div>
+        <div class="field"><label for="r-due">Expected return date <span class="opt">(optional)</span></label><input id="r-due" type="date"></div>
+        <div class="field"><label for="r-recv">Return received</label><select id="r-recv"><option>No</option><option>Yes</option></select></div>
+        <div class="field wide"><label for="r-notes">Notes <span class="opt">(optional)</span></label><textarea id="r-notes"></textarea></div>
+      </div>
+      <div class="actions"><button class="btn primary" type="submit" id="r-submit">Add reinvestment</button><button class="btn" type="button" data-goto="reinvest">Cancel</button><button class="btn danger" type="button" id="r-delete" hidden>Delete reinvestment</button></div>
+    </form>
+  </section>
+</div>
+
+<div class="overlay" id="recv-overlay" hidden>
+  <form class="dialog" id="recv-form" role="dialog" aria-modal="true" aria-labelledby="recv-title">
+    <div><h2 id="recv-title">Mark return received</h2><p class="hint" id="recv-sub"></p></div>
+    <div class="field"><label for="x-date">Received on</label><input id="x-date" type="date" required></div>
+    <div class="field"><label for="x-logi">Logistics cost</label><input id="x-logi" type="number" min="0" step="any" placeholder="e.g. 500" required><span class="hint">Taken off the agreed return to give the actual return. Enter 0 if there was none.</span></div>
+    <div class="preview" id="recv-preview" aria-live="polite"></div>
+    <div class="actions"><button class="btn primary" type="submit" id="x-submit">Mark received and close</button><button class="btn" type="button" id="x-cancel">Cancel</button></div>
+  </form>
+</div>
+
+<input type="file" id="contract-pick" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" hidden>
+<div class="overlay" id="conn-overlay" hidden>
+  <form class="dialog wide" id="conn-form" role="dialog" aria-modal="true" aria-labelledby="conn-title" autocomplete="off">
+    <div><h2 id="conn-title">Backup and reminders</h2><p class="hint">Your data is kept on this Mac. After each change the app copies it to the <a href="https://docs.google.com/spreadsheets/d/15KTdFGPKTQuRLtLUg4L3fFVz-boxhVVxLmm4Z5JZc9g/edit" target="_blank" rel="noopener">WAGTales Investment sheet</a>, with a Dashboard tab for reports. The sheet is a copy, so changes made in it are overwritten.</p></div>
+    <div class="preview" id="sync-status" aria-live="polite"></div>
+    <details id="conn-steps">
+      <summary>How to connect the sheet</summary>
+      <ol class="steps">
+        <li>Open the sheet and choose <b>Extensions &rsaquo; Apps Script</b>.</li>
+        <li>Delete the code that is there, paste the backup script and click Save. <span class="inline-actions"><button class="btn small" type="button" id="copy-script">Copy script</button><a href="apps-script.gs" target="_blank" rel="noopener">or open it</a></span></li>
+        <li>No key yet? Choose <b>setup</b> in the function menu, click <b>Run</b> and allow access, then copy the key from the execution log. If you already have a key, keep it: running setup again replaces it.</li>
+        <li>Choose <b>authorize</b> and click <b>Run</b> once, so contracts can be copied to Google Drive.</li>
+        <li>Click <b>Deploy &rsaquo; New deployment</b>, pick <b>Web app</b>, set Execute as <b>Me</b> and Who has access <b>Anyone</b>, then Deploy and copy the web app URL. If it was deployed before, use <b>Manage deployments &rsaquo; Edit &rsaquo; New version &rsaquo; Deploy</b>; the URL stays the same.</li>
+        <li>Paste the URL and the key below. If Google says &ldquo;OAuth client was not found&rdquo;, try again in a private window signed in to one Google account.</li>
+      </ol>
+    </details>
+    <div class="field"><label for="c-url">Web app URL</label><input id="c-url" placeholder="https://script.google.com/macros/s/.../exec" spellcheck="false"></div>
+    <div class="field"><label for="c-key">Key</label><input id="c-key" class="mono" spellcheck="false"><span class="hint">Kept on this Mac only.</span></div>
+    <label class="check"><input type="checkbox" id="rem-on"><span><b>Mac reminders.</b> A notification when a return is due tomorrow or today, when one is overdue, when money is not marked as sent, and when the backup keeps failing. At most once a day for each.</span></label>
+    <div class="actions"><button class="btn primary" type="submit" id="c-save">Save and connect</button><button class="btn" type="button" id="c-sync" hidden>Back up now</button><button class="btn" type="button" id="c-cancel">Close</button></div>
+  </form>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  var sync = null;
+  var busy = false;
+  var data = { cust: [], deals: [], arr: [], reinv: [] };
+  var reminders = { on: true };
+  var loadedOnce = false;
+  var invAuto = true;
+  var recvRow = null;
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var C = { recv: 'var(--r1)', exp: 'var(--r2)', proj: 'var(--r3)' };
+  var MAX_CONTRACT = 15 * 1024 * 1024;
+
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function sv(name, attrs, parent) {
+    var e = document.createElementNS(SVGNS, name);
+    if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function fmt(n) { return Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+  function num(s) { var n = parseFloat(String(s == null ? '' : s).replace(/,/g, '')); return isNaN(n) ? null : n; }
+  function isoToday() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  /* the app sends dates as 29.09.2026; the other forms are accepted too, as in the old sheet data */
+  function parseDMY(s) {
+    s = String(s == null ? '' : s).trim(); var m;
+    if ((m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s))) return new Date(+m[3], +m[2] - 1, +m[1]);
+    if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) return new Date(+m[3], +m[1] - 1, +m[2]);
+    if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) return new Date(+m[1], +m[2] - 1, +m[3]);
+    if (/^\d{5}$/.test(s)) return new Date(1899, 11, 30 + Number(s));
+    return null;
+  }
+  function dateTxt(s) { var d = parseDMY(s); return d ? fmtDMY(d) : s; }
+  function fmtDMY(d) { return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear(); }
+  function today0() { var t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
+  function addMonths(d, k) { return new Date(d.getFullYear(), d.getMonth() + k, d.getDate()); }
+  function mkey(d) { return d.getFullYear() * 12 + d.getMonth(); }
+  function mlabel(k, withYear) { var d = new Date(Math.floor(k / 12), k % 12, 1); return d.toLocaleDateString('en-US', withYear ? { month: 'short', year: 'numeric' } : { month: 'short' }); }
+  function pct(a, b) { return b > 0 ? Math.round(a / b * 100) + '%' : '0%'; }
+  function pct1(a, b) { return b > 0 ? (a / b * 100).toFixed(1) + '%' : 'n/a'; }
+  function rate(v) { return v == null ? 'n/a' : (v * 100).toFixed(1) + '%'; }
+  /* simple yearly rate: profit over capital, scaled from the span between first investment and last payout to 365 days */
+  function perYear(total, capital, start, finish) {
+    if (!(capital > 0) || !start || !finish) return null;
+    var days = (finish - start) / 86400000;
+    return days >= 28 ? total / capital * 365 / days : null;
+  }
+  /* Indian financial year, April to March */
+  function fyKey(d) { return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; }
+  function fyLabel(y) { return 'FY ' + y + '\u2013' + String(y + 1).slice(2); }
+
+  var toastTimer = null;
+  function toast(msg, isError) {
+    var t = $('toast'); t.textContent = msg; t.className = 'toast' + (isError ? ' error' : ''); t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, isError ? 9000 : 4000);
+  }
+  function errText(e, wasWrite) {
+    var c = e && e.code;
+    if (c === 'app_error') return e.message || 'The app refused the change.';
+    if (c === 'file_too_big') return 'Contract files must be 15 MB or smaller.';
+    if (c === 'read_failed') return 'The file could not be read.';
+    if (wasWrite) return 'The app did not confirm the change. Refresh and check the table before trying again.';
+    return 'The WAGTales app on this Mac is not answering. Reload the page in a moment; if it keeps happening, run install.sh again.';
+  }
+  function showBanner(msg) { var b = $('banner'); if (msg) { b.textContent = msg; b.hidden = false; } else { b.hidden = true; } }
+
+  /* every change goes to the app on this Mac; the custom header keeps other websites out */
+  function api(action, payload) {
+    var body = { action: action };
+    if (payload) for (var k in payload) body[k] = payload[k];
+    return fetch('/api', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WagTales': '1' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { throw { code: 'bad_response' }; }); },
+            function () { throw { code: 'network' }; })
+      .then(function (j) {
+        if (!j || !j.ok) throw { code: 'app_error', message: j && j.error };
+        return j;
+      });
+  }
+
+  /* ---------- loading ---------- */
+  function applyData(res) {
+    function mapRows(v) { return (v || []).map(function (r, i) { return { row: i + 1, c: r }; }).slice(1); }
+    data.deals = mapRows(res.deals).filter(function (o) { return o.c.length && (o.c[0] || o.c[1]); });
+    data.arr = mapRows(res.arr).filter(function (o) { return o.c.length && o.c[0]; });
+    data.reinv = mapRows(res.reinv).filter(function (o) { return o.c.length && (o.c[0] || o.c[2]); });
+    data.cust = mapRows(res.cust).filter(function (o) { return o.c.length && o.c[0]; });
+    if (res.reminders) reminders = res.reminders;
+    loadedOnce = true;
+    $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    showSync(res.sync);
+    renderAll();
+    sendReport();
+  }
+  function load() {
+    $('refresh').disabled = true;
+    return fetch('/api/data', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw { code: 'network' }; return r.json(); }, function () { throw { code: 'network' }; })
+      .then(function (res) { $('refresh').disabled = false; showBanner(''); applyData(res); })
+      .catch(function (err) { $('refresh').disabled = false; showBanner(errText(err, false)); });
+  }
+
+  /* ---------- model ---------- */
+  function cellVal(o, i) { return (o.c[i] == null ? '' : String(o.c[i])); }
+  function model() {
+    var ds = data.deals.map(function (o) {
+      var d = {
+        o: o, n: num(o.c[0]), arr: cellVal(o, 1), cust: cellVal(o, 2) || cellVal(o, 1), status: cellVal(o, 3), date: parseDMY(cellVal(o, 4)),
+        dist: num(o.c[7]) || 0, profit: num(o.c[8]) || 0, inv: num(o.c[9]) || 0, rtype: cellVal(o, 12),
+        agreed: num(o.c[13]) || 0, due: parseDMY(cellVal(o, 14)), logi: num(o.c[15]), recv: cellVal(o, 17) === 'Yes', actual: num(o.c[16]),
+        rdate: parseDMY(cellVal(o, 20)), sent: cellVal(o, 10) !== 'No', txn: cellVal(o, 11)
+      };
+      d.realised = d.recv ? (d.actual != null ? d.actual - (d.rtype === 'Profit + Principal' ? d.dist : 0) : d.profit) : 0;
+      d.expected = d.recv ? 0 : d.profit;
+      d.when = d.recv ? (d.rdate || d.due || d.date) : d.due;
+      return d;
+    });
+    // logistics estimate: share of profit lost to logistics on deals already paid; applied to everything still to come
+    var lgSum = 0, lgBase = 0;
+    ds.forEach(function (d) { if (d.recv) { lgSum += d.logi || 0; lgBase += d.profit; } });
+    var lgRate = lgBase > 0 ? Math.min(0.5, lgSum / lgBase) : 0;
+    ds.forEach(function (d) { d.expectedGross = d.expected; d.expected = Math.round(d.expected * (1 - lgRate)); });
+    var m = { deals: ds, lgRate: lgRate, received: 0, expected: 0, capital: 0, invAll: 0, profitAll: 0, active: 0, closed: 0, paid: 0, undated: 0 };
+    ds.forEach(function (d) {
+      m.received += d.realised; m.expected += d.expected; m.profitAll += d.profit; m.invAll += d.inv;
+      if (d.recv) m.paid++;
+      if (d.status === 'Closed') m.closed++; else { m.active++; m.capital += d.inv; }
+      if (!d.when && d.expected) m.undated += d.expected;
+    });
+    m.yield = m.invAll > 0 ? m.profitAll / m.invAll : null;
+    // reinvestments into a deal recycle profit as capital; others went elsewhere
+    m.reinvested = 0; m.reinvDeals = 0;
+    data.reinv.forEach(function (o) { var v = num(o.c[2]) || 0; m.reinvested += v; if (cellVal(o, 7)) m.reinvDeals += v; });
+
+    // projections: each recurring arrangement repeats its latest deal's profit monthly until its end date
+    m.arrs = data.arr.map(function (o) {
+      return { o: o, id: cellVal(o, 0), cust: cellVal(o, 1), type: cellVal(o, 2), term: num(o.c[3]), end: parseDMY(cellVal(o, 5)), deals: [], proj: [],
+        custId: cellVal(o, 11), label: cellVal(o, 12), projMode: cellVal(o, 13) || 'latest', cycle: num(o.c[14]) };
+    });
+    m.proj = [];
+    m.arrs.forEach(function (a) {
+      a.deals = ds.filter(function (d) { return d.arr === a.id; });
+      // principal circles between cycles, so an arrangement's capital is its largest single investment
+      a.capital = a.deals.reduce(function (s, d) { return Math.max(s, d.inv); }, 0);
+      if (!/recurring/i.test(a.type) || !a.deals.length || (!a.term && !a.end) || a.projMode === 'none') return;
+      var last = a.deals.slice().sort(function (x, y) { return ((x.due || x.date || 0) - (y.due || y.date || 0)) || (x.n - y.n); }).pop();
+      var anchor = last.due || (last.date ? addMonths(last.date, 1) : null);
+      if (!anchor) return;
+      var per = a.projMode === 'fixed' && a.cycle != null ? a.cycle : last.profit;
+      // one cycle per month of the term; without a term, stop at the end date
+      var left = a.term ? Math.max(0, Math.round(a.term) - a.deals.length) : 36;
+      for (var k = 1; k <= left; k++) {
+        var nx = addMonths(anchor, k); if (!a.term && nx > a.end) break;
+        a.proj.push({ arr: a.id, cust: a.cust, due: nx, amount: Math.round(per * (1 - lgRate)), gross: per, last: last, cycle: a.deals.length + k, term: a.term });
+      }
+      m.proj = m.proj.concat(a.proj);
+    });
+    m.projected = m.proj.reduce(function (s, p) { return s + p.amount; }, 0);
+    m.outlook = m.received + m.expected + m.projected;
+    m.arrs.forEach(function (a) {
+      a.received = a.deals.reduce(function (s, d) { return s + d.realised; }, 0);
+      a.toCome = a.deals.reduce(function (s, d) { return s + d.expected; }, 0) + a.proj.reduce(function (s, p) { return s + p.amount; }, 0);
+      a.total = a.received + a.toCome;
+      var starts = a.deals.map(function (d) { return d.date; }).filter(Boolean);
+      var ends = a.deals.map(function (d) { return d.when; }).concat(a.proj.map(function (p) { return p.due; })).filter(Boolean);
+      a.start = starts.length ? new Date(Math.min.apply(null, starts)) : null;
+      a.finish = ends.length ? new Date(Math.max.apply(null, ends)) : null;
+      a.perYear = perYear(a.total, a.capital, a.start, a.finish);
+    });
+    m.capitalAll = m.arrs.reduce(function (s, a) { return s + a.capital; }, 0);
+    m.returnPct = m.capitalAll > 0 ? m.outlook / m.capitalAll : null;
+    m.fresh = Math.max(0, m.capitalAll - m.reinvDeals);
+    var lastDate = null;
+    ds.forEach(function (d) { if (d.when && (!lastDate || d.when > lastDate)) lastDate = d.when; });
+    m.proj.forEach(function (p) { if (!lastDate || p.due > lastDate) lastDate = p.due; });
+    m.lastDate = lastDate;
+    var first = null; ds.forEach(function (d) { if (d.date && (!first || d.date < first)) first = d.date; });
+    m.perYear = perYear(m.outlook, m.capitalAll, first, lastDate);
+    m.custs = data.cust.map(function (o) {
+      var c = { o: o, id: cellVal(o, 0), name: cellVal(o, 1), phone: cellVal(o, 2), notes: cellVal(o, 3) };
+      c.arrs = m.arrs.filter(function (a) { return a.custId === c.id; });
+      ['capital', 'received', 'toCome', 'total'].forEach(function (k) { c[k] = c.arrs.reduce(function (s, a) { return s + a[k]; }, 0); });
+      c.deals = c.arrs.reduce(function (s, a) { return s + a.deals.length; }, 0);
+      return c;
+    });
+    return m;
+  }
+
+  /* ---------- overview ---------- */
+  function card(title, sub) {
+    var c = el('div', 'card');
+    if (title) { var h = el('div'); h.appendChild(el('h3', '', title)); if (sub) h.appendChild(el('p', 'sub', sub)); c.appendChild(h); }
+    return c;
+  }
+  function legend(items) {
+    var l = el('div', 'legend');
+    items.forEach(function (it) {
+      var s = el('span'), i = el('i', it.kind || '');
+      if (it.kind === 'dash') i.style.borderTopColor = it.color; else i.style.background = it.color;
+      s.appendChild(i); s.appendChild(document.createTextNode(it.name)); l.appendChild(s);
+    });
+    return l;
+  }
+  function tableView(heads, rows) {
+    var d = el('details', 'tv'); d.appendChild(el('summary', '', 'View as table'));
+    var box = el('div', 'tablebox'), t = el('table'), hr = el('tr');
+    heads.forEach(function (h, i) { hr.appendChild(el('th', i ? 'n' : '', h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    rows.forEach(function (r) { var tr = el('tr'); r.forEach(function (c, i) { tr.appendChild(el('td', i ? 'n' : '', c)); }); tb.appendChild(tr); });
+    t.appendChild(tb); box.appendChild(t); d.appendChild(box); return d;
+  }
+
+  /* returns still to come, booked and projected, soonest first */
+  function upcoming(m) {
+    return m.deals.filter(function (d) { return !d.recv && d.due; }).map(function (d) { return { due: d.due, cust: d.cust, line: 'Deal #' + d.n + ' · ' + (d.rtype === 'Profit + Principal' ? 'profit + principal' : 'profit'), amount: d.agreed, kind: 'exp', o: d.o }; })
+      .concat(m.proj.map(function (p) { return { due: p.due, cust: p.cust, line: p.arr + ' · projected cycle', amount: p.amount, kind: 'proj', p: p }; }))
+      .sort(function (a, b) { return a.due - b.due; });
+  }
+  /* profit per month by return date, every month from the first to the last */
+  function monthBuckets(m) {
+    var buckets = {}, minK = null, maxK = null;
+    function bucket(key) { if (!buckets[key]) buckets[key] = { key: key, recv: 0, exp: 0, proj: 0 }; if (minK == null || key < minK) minK = key; if (maxK == null || key > maxK) maxK = key; return buckets[key]; }
+    m.deals.forEach(function (d) { if (!d.when) return; var b = bucket(mkey(d.when)); b.recv += d.realised; b.exp += d.expected; });
+    m.proj.forEach(function (p) { bucket(mkey(p.due)).proj += p.amount; });
+    var cats = [];
+    if (minK != null) for (var kk = minK; kk <= maxK; kk++) { var b = buckets[kk] || { key: kk, recv: 0, exp: 0, proj: 0 }; b.label = mlabel(kk, kk === minK || kk % 12 === 0); cats.push(b); }
+    if (m.undated > 0) cats.push({ key: 1e9, label: 'No date', recv: 0, exp: m.undated, proj: 0 });
+    return { buckets: buckets, minK: minK, maxK: maxK, cats: cats };
+  }
+
+  /* profit by Indian financial year, by the date each return is paid or due */
+  function fyBuckets(m) {
+    var b = {};
+    function at(d) { var k = fyKey(d); return b[k] || (b[k] = { key: k, recv: 0, exp: 0, proj: 0 }); }
+    m.deals.forEach(function (d) { if (!d.when) return; var x = at(d.when); x.recv += d.realised; x.exp += d.expected; });
+    m.proj.forEach(function (p) { at(p.due).proj += p.amount; });
+    return Object.keys(b).sort().map(function (k) { return b[k]; });
+  }
+  /* what needs doing: overdue or near returns, money not sent, a failing backup */
+  function attention(m) {
+    var t0 = today0(), out = [];
+    m.deals.forEach(function (d) {
+      var who = 'Deal #' + d.n + ' \u00b7 ' + d.cust;
+      if (!d.recv && d.due) {
+        var days = Math.round((d.due - t0) / 86400000);
+        if (days < 0) out.push({ kind: 'bad', tag: 'Overdue', text: who, sub: 'Return of ' + fmt(d.agreed) + ' was due on ' + fmtDMY(d.due), act: 'recv', o: d.o, order: 0 });
+        else if (days <= 7) out.push({ kind: 'warn', tag: days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days', text: who, sub: 'Return of ' + fmt(d.agreed) + ' due on ' + fmtDMY(d.due), act: 'recv', o: d.o, order: 1 + days / 10 });
+      }
+      if (!d.sent && d.status !== 'Closed') out.push({ kind: 'warn', tag: 'Not sent', text: who, sub: 'The money is not marked as sent yet', act: 'edit', o: d.o, order: 2 });
+    });
+    if (sync && sync.configured && sync.state === 'error') out.push({ kind: 'bad', tag: 'Backup', text: 'The Google Sheet backup is failing', sub: sync.error || '', act: 'backup', order: 3 });
+    return out.sort(function (a, b) { return a.order - b.order; });
+  }
+
+  var drawers = [];
+  function renderOverview() {
+    var box = $('ov'); box.textContent = ''; drawers = [];
+    if (!loadedOnce) { box.appendChild(el('div', 'empty', 'Loading.')); return; }
+    var m = model();
+    if (!m.deals.length) { box.appendChild(el('div', 'empty', 'No deals yet. Add the first one to see your totals and charts.')); return; }
+
+    var att = attention(m);
+    if (att.length) {
+      var ac0 = card('Needs attention', reminders.on ? 'Mac reminders are on for these.' : 'Mac reminders are off. Turn them on under Backup at the top.');
+      var ul0 = el('ul', 'attn');
+      att.forEach(function (it) {
+        var li = el('li'), w = el('div', 'what'), t = el('div');
+        w.appendChild(pill(it.tag, it.kind)); t.appendChild(el('b', '', it.text)); t.appendChild(el('span', 'as', it.sub)); w.appendChild(t); li.appendChild(w);
+        if (it.act === 'recv') li.appendChild(actBtn('Mark received', function () { openRecv(it.o); }));
+        else if (it.act === 'edit') li.appendChild(actBtn('Edit deal', function () { startEditDeal(it.o); }));
+        else li.appendChild(actBtn('Open backup', openConn));
+        ul0.appendChild(li);
+      });
+      ac0.appendChild(ul0); box.appendChild(ac0);
+    }
+
+    /* row A: outlook + upcoming */
+    var rowA = el('div', 'row a');
+    var o = el('div', 'card outlook');
+    o.appendChild(el('span', 'eyebrow', 'Profit outlook' + (m.lastDate ? ' to ' + m.lastDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '')));
+    o.appendChild(el('div', 'fig', fmt(m.outlook)));
+    o.appendChild(el('p', 'lead', fmt(m.received) + ' received so far.' + (m.lgRate > 0 ? ' Everything still to come is shown after an estimated ' + (m.lgRate * 100).toFixed(1) + '% for logistics.' : ' The rest comes in as scheduled cycles complete.')));
+    var bar = el('div', 'segbar'); bar.setAttribute('role', 'img');
+    bar.setAttribute('aria-label', 'Received ' + fmt(m.received) + ', expected ' + fmt(m.expected) + ', projected ' + fmt(m.projected));
+    [['recv', m.received], ['exp', m.expected], ['proj', m.projected]].forEach(function (s) {
+      if (s[1] > 0) { var i = el('i'); i.style.background = C[s[0]]; i.style.flex = String(s[1]); bar.appendChild(i); }
+    });
+    o.appendChild(bar);
+    var lg = el('div', 'seglegend');
+    [['Received', 'recv', m.received], ['Expected', 'exp', m.expected], ['Projected', 'proj', m.projected]].forEach(function (s) {
+      var d = el('div'), k = el('span', 'k'), sw = el('i'); sw.style.background = C[s[1]]; k.appendChild(sw); k.appendChild(document.createTextNode(s[0]));
+      d.appendChild(k); var v = el('span', 'v', fmt(s[2])); d.appendChild(v); d.appendChild(el('span', 'p', pct(s[2], m.outlook) + ' of outlook')); lg.appendChild(d);
+    });
+    o.appendChild(lg);
+    o.appendChild(el('p', 'note', 'Expected is agreed profit on deals booked so far. Projected repeats each recurring arrangement’s latest profit monthly until it has one cycle per month of its term. ' + (m.lgRate > 0 ? 'Both have logistics taken off at ' + (m.lgRate * 100).toFixed(1) + '% of profit, the rate on deals already paid.' : 'No logistics is deducted yet because no deal has been paid.')));
+    var left = el('div', 'stack'); left.appendChild(o); rowA.appendChild(left);
+
+    var up = card('Upcoming returns', 'Next payouts, booked and projected');
+    var items = upcoming(m).slice(0, 7);
+    if (!items.length) up.appendChild(el('div', 'empty', 'No return dates set yet.'));
+    else {
+      var ul = el('ul', 'uplist'), t0 = today0();
+      items.forEach(function (it) {
+        var li = el('li'), d = el('div', 'd');
+        d.appendChild(el('b', '', String(it.due.getDate()))); d.appendChild(el('span', '', it.due.toLocaleDateString('en-US', { month: 'short' })));
+        li.appendChild(d);
+        var w = el('div', 'who'); w.appendChild(el('b', '', it.cust)); w.appendChild(el('span', '', it.line)); li.appendChild(w);
+        var a = el('div', 'amt'); a.appendChild(el('span', '', fmt(it.amount)));
+        var days = Math.round((it.due - t0) / 86400000);
+        var p = it.kind === 'proj' ? el('span', 'pill proj', 'Projected') : days < 0 ? el('span', 'pill bad', 'Overdue') : el('span', 'pill', days === 0 ? 'Today' : 'In ' + days + ' day' + (days === 1 ? '' : 's'));
+        p.style.marginTop = '3px'; a.appendChild(p);
+        var ac = el('div', 'act');
+        if (it.o) ac.appendChild(actBtn('Mark received', function () { openRecv(it.o); }));
+        if (it.p) ac.appendChild(actBtn('Add deal', function () { startAddDealFromProj(it.p); }));
+        li.appendChild(a); li.appendChild(ac);
+        ul.appendChild(li);
+      });
+      up.appendChild(ul);
+    }
+    rowA.appendChild(up);
+    box.appendChild(rowA);
+
+    /* KPI strip */
+    var k = el('div', 'kpis');
+    function kpi(l, v, c) { var d = el('div', 'kpi'); d.appendChild(el('span', 'l', l)); d.appendChild(el('span', 'v', v)); d.appendChild(el('span', 'c', c)); k.appendChild(d); }
+    var byWhen = m.lastDate ? ' by ' + m.lastDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+    kpi('Capital invested', fmt(m.capitalAll), 'principal counted once per arrangement');
+    kpi('Profit received', fmt(m.received), pct1(m.received, m.capitalAll) + ' return so far');
+    kpi('Expected return', m.returnPct == null ? 'n/a' : (m.returnPct * 100).toFixed(1) + '%', fmt(m.outlook) + ' profit' + byWhen);
+    kpi('Reinvested', fmt(m.reinvested), m.received > 0 ? pct(m.reinvested, m.received) + ' of profit received' : 'nothing received yet');
+    left.appendChild(k);
+
+    /* investment vs profit */
+    var iv = card('Investment vs profit', 'Capital in each arrangement against the profit it returns, after estimated logistics');
+    var ivBox = el('div', 'tablebox'), ivT = el('table'), ivH = el('tr');
+    [['Arrangement', ''], ['Capital', 'n'], ['Profit received', 'n'], ['Profit to come', 'n'], ['Total profit', 'n'], ['Return', 'n'], ['Per year', 'n']].forEach(function (h) { ivH.appendChild(el('th', h[1], h[0])); });
+    var ivHead = el('thead'); ivHead.appendChild(ivH); ivT.appendChild(ivHead);
+    var ivB = el('tbody'), withCap = m.arrs.filter(function (a) { return a.capital > 0; });
+    var maxRet = Math.max.apply(null, withCap.map(function (a) { return a.total / a.capital; }).concat([m.returnPct || 0, 0.0001]));
+    function retCell(v) {
+      var c = el('td', 'n ret'), w = el('div', 'rcell'), bar = el('div', 'rbar'), f = el('i');
+      f.style.width = Math.max(2, v / maxRet * 100) + '%'; bar.appendChild(f); w.appendChild(bar); w.appendChild(el('span', '', (v * 100).toFixed(1) + '%')); c.appendChild(w); return c;
+    }
+    withCap.forEach(function (a) {
+      var tr = el('tr'), n = el('td'); n.appendChild(el('b', 'an', a.cust)); n.appendChild(el('span', 'as', a.id + ' · ' + a.type)); tr.appendChild(n);
+      tr.appendChild(el('td', 'n', fmt(a.capital))); tr.appendChild(el('td', 'n', fmt(a.received))); tr.appendChild(el('td', 'n', fmt(a.toCome)));
+      tr.appendChild(el('td', 'n', fmt(a.total))); tr.appendChild(retCell(a.total / a.capital)); tr.appendChild(el('td', 'n', rate(a.perYear))); ivB.appendChild(tr);
+    });
+    var tt = el('tr', 'total'); tt.appendChild(el('td', '', 'All arrangements'));
+    tt.appendChild(el('td', 'n', fmt(m.capitalAll))); tt.appendChild(el('td', 'n', fmt(m.received))); tt.appendChild(el('td', 'n', fmt(m.expected + m.projected)));
+    tt.appendChild(el('td', 'n', fmt(m.outlook))); tt.appendChild(retCell(m.returnPct || 0)); tt.appendChild(el('td', 'n', rate(m.perYear))); ivB.appendChild(tt);
+    ivT.appendChild(ivB); ivBox.appendChild(ivT); iv.appendChild(ivBox);
+    iv.appendChild(el('p', 'note', 'Capital is each arrangement’s largest single investment, because the principal circles from cycle to cycle. Return is total profit divided by capital over the whole term; per year scales it to 12 months, from the first investment to the last payout.' +
+      (m.reinvDeals > 0 && m.fresh > 0 ? ' ' + fmt(m.reinvDeals) + ' of the capital came from reinvested profit; on the ' + fmt(m.fresh) + ' you put in yourself, the return is ' + pct1(m.outlook, m.fresh) + '.' : '')));
+    box.appendChild(iv);
+
+    /* month buckets */
+    var mb = monthBuckets(m), buckets = mb.buckets, minK = mb.minK, maxK = mb.maxK, cats = mb.cats;
+
+    var rowB = el('div', 'row b');
+    var c1 = card('Profit by month', 'By return date. Darker is more certain.');
+    c1.appendChild(legend([{ name: 'Received', color: C.recv }, { name: 'Expected', color: C.exp }, { name: 'Projected', color: C.proj }]));
+    var b1 = el('div', 'cbox'); c1.appendChild(b1);
+    c1.appendChild(tableView(['Month', 'Received', 'Expected', 'Projected'], cats.map(function (c) { return [c.label, fmt(c.recv), fmt(c.exp), fmt(c.proj)]; })));
+    rowB.appendChild(c1);
+    drawers.push(function () { colChart(b1, cats); });
+
+    /* cumulative */
+    var firstInv = null; m.deals.forEach(function (d) { if (d.date && (!firstInv || d.date < firstInv)) firstInv = d.date; });
+    var startK = firstInv ? Math.min(mkey(firstInv), minK == null ? mkey(firstInv) : minK) : minK;
+    var series = [];
+    if (startK != null && maxK != null) {
+      var cr = 0, cb = 0, co = 0;
+      for (var q = startK; q <= maxK; q++) {
+        var bb = buckets[q] || { recv: 0, exp: 0, proj: 0 };
+        cr += bb.recv; cb += bb.recv + bb.exp; co += bb.recv + bb.exp + bb.proj;
+        series.push({ label: mlabel(q, q === startK || q % 12 === 0), recv: cr, booked: cb, outlook: co });
+      }
+    }
+    var c2 = card('Profit growth', m.undated > 0 ? 'Running total by month. Leaves out ' + fmt(m.undated) + ' with no return date.' : 'Running total by month, with projected cycles dashed');
+    c2.appendChild(legend([{ name: 'Received', color: C.recv, kind: 'ln' }, { name: 'Booked', color: C.exp, kind: 'ln' }, { name: 'With projections', color: C.proj, kind: 'dash' }]));
+    var b2 = el('div', 'cbox'); c2.appendChild(b2);
+    c2.appendChild(tableView(['Month', 'Received', 'Booked', 'With projections'], series.map(function (s) { return [s.label, fmt(s.recv), fmt(s.booked), fmt(s.outlook)]; })));
+    rowB.appendChild(c2);
+    drawers.push(function () { lineChart(b2, series); });
+    box.appendChild(rowB);
+
+    var fys = fyBuckets(m);
+    if (fys.length) {
+      var fyc = card('By financial year', 'April to March, by the date each return is paid or due');
+      var fyBox = el('div', 'tablebox'), fyT = el('table'), fyH = el('tr');
+      [['Year', ''], ['Received', 'n'], ['Expected', 'n'], ['Projected', 'n'], ['Total', 'n']].forEach(function (h) { fyH.appendChild(el('th', h[1], h[0])); });
+      var fyHead = el('thead'); fyHead.appendChild(fyH); fyT.appendChild(fyHead);
+      var fyB = el('tbody');
+      fys.forEach(function (y) {
+        var tr = el('tr'); tr.appendChild(el('td', '', fyLabel(y.key)));
+        [y.recv, y.exp, y.proj, y.recv + y.exp + y.proj].forEach(function (v) { tr.appendChild(el('td', 'n', fmt(v))); });
+        fyB.appendChild(tr);
+      });
+      fyT.appendChild(fyB); fyBox.appendChild(fyT); fyc.appendChild(fyBox);
+      if (m.undated > 0) fyc.appendChild(el('p', 'note', fmt(m.undated) + ' of expected profit has no return date yet, so it is not in any year.'));
+      box.appendChild(fyc);
+    }
+
+    /* row C: arrangements + yield */
+    var rowC = el('div', 'row b');
+    var c3 = card('Arrangements', 'Cycles paid, booked and projected for each arrangement');
+    var list = el('div', 'arrs');
+    m.arrs.forEach(function (a) {
+      var paid = a.deals.filter(function (d) { return d.recv; }).length, open = a.deals.length - paid, total = paid + open + a.proj.length;
+      var recvSum = a.deals.reduce(function (s, d) { return s + d.realised; }, 0);
+      var outl = recvSum + a.deals.reduce(function (s, d) { return s + d.expected; }, 0) + a.proj.reduce(function (s, p) { return s + p.amount; }, 0);
+      var r = el('div', 'arr'), h = el('div', 'h');
+      h.appendChild(el('b', '', a.cust)); h.appendChild(el('span', '', a.id + ' · ' + a.type + ' · ' + (a.deals.length ? paid + ' of ' + total + ' cycle' + (total === 1 ? '' : 's') + ' paid' + (open ? ', ' + open + ' booked' : '') : 'no deals yet')));
+      r.appendChild(h);
+      var pips = el('div', 'pips'); pips.setAttribute('role', 'img'); pips.setAttribute('aria-label', paid + ' paid, ' + open + ' booked, ' + a.proj.length + ' projected');
+      for (var i = 0; i < total; i++) { var pi = el('i'); pi.style.background = i < paid ? C.recv : i < paid + open ? C.exp : C.proj; pips.appendChild(pi); }
+      if (!total) { var e0 = el('i'); e0.style.background = 'var(--grid)'; pips.appendChild(e0); }
+      r.appendChild(pips);
+      var f = el('div', 'f');
+      if (!a.deals.length) {
+        // nothing to project until the first deal gives the amounts
+        f.appendChild(document.createTextNode('Add its first deal to include it in the totals. '));
+        var fb = actBtn('Add deal', function () { startAddDealFor(a.id); }); fb.style.marginLeft = '6px'; f.appendChild(fb);
+        r.appendChild(f); list.appendChild(r); return;
+      }
+      f.appendChild(document.createTextNode('Received ')); f.appendChild(el('b', '', fmt(recvSum)));
+      f.appendChild(document.createTextNode(' of ')); f.appendChild(el('b', '', fmt(outl)));
+      var lastPay = a.proj.length ? a.proj[a.proj.length - 1].due : null;
+      f.appendChild(document.createTextNode((lastPay ? ' · last payout ' + fmtDMY(lastPay) : a.end ? ' · ends ' + fmtDMY(a.end) : '') +
+        (a.projMode === 'none' ? ' · not projected' : a.projMode === 'fixed' && a.cycle != null ? ' · projected at ' + fmt(a.cycle) + ' a cycle' : '')));
+      r.appendChild(f); list.appendChild(r);
+    });
+    if (!m.arrs.length) list.appendChild(el('div', 'empty', 'No arrangements yet.'));
+    c3.appendChild(list);
+    rowC.appendChild(c3);
+
+    var ys = m.deals.filter(function (d) { return d.inv > 0; }).map(function (d) { return { label: '#' + d.n + ' ' + d.cust, v: d.profit / d.inv, profit: d.profit, inv: d.inv }; });
+    var c4 = card('Yield per deal', 'Profit as a share of the amount invested');
+    var b4 = el('div', 'cbox'); c4.appendChild(b4);
+    c4.appendChild(tableView(['Deal', 'Yield', 'Profit', 'Invested'], ys.map(function (y) { return [y.label, (y.v * 100).toFixed(1) + '%', fmt(y.profit), fmt(y.inv)]; })));
+    rowC.appendChild(c4);
+    drawers.push(function () { barChart(b4, ys); });
+    box.appendChild(rowC);
+
+    drawCharts();
+  }
+  function drawCharts() { drawers.forEach(function (f) { try { f(); } catch (e) {} }); }
+
+  /* ---------- chart helpers ---------- */
+  function niceScale(v) {
+    if (!(v > 0)) return { max: 1, step: 0.25 };
+    var raw = v / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+    var step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+    return { max: Math.ceil(v / step - 1e-9) * step, step: step };
+  }
+  function tick(v) { return v >= 1000 ? fmt(v / 1000) + 'K' : fmt(v); }
+  function txt(parent, x, y, s, o) {
+    var t = sv('text', { x: x, y: y, 'font-size': (o && o.size) || 11.5, 'text-anchor': (o && o.anchor) || 'start', fill: (o && o.fill) || 'var(--muted)' }, parent);
+    if (o && o.weight) t.setAttribute('font-weight', o.weight);
+    t.style.fontVariantNumeric = 'tabular-nums';
+    t.textContent = s; return t;
+  }
+  function grid(svg, m, W, H, sc) {
+    var ph = H - m.t - m.b;
+    for (var v = 0; v <= sc.max + 1e-9; v += sc.step) {
+      var y = m.t + ph - v / sc.max * ph;
+      sv('line', { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: v === 0 ? 'var(--line)' : 'var(--grid)', 'stroke-width': 1 }, svg);
+      txt(svg, m.l - 8, y + 4, tick(v), { anchor: 'end' });
+    }
+  }
+  var tipEl = null;
+  function tipShow(ev, title, rows) {
+    tipEl = tipEl || $('tip'); tipEl.textContent = '';
+    if (title) tipEl.appendChild(el('div', 't', title));
+    rows.forEach(function (r) {
+      var d = el('div', 'r'); var k = el('i'); k.style.background = r.color; d.appendChild(k);
+      d.appendChild(el('span', 'n', r.name)); d.appendChild(el('b', '', r.value)); tipEl.appendChild(d);
+    });
+    tipEl.hidden = false;
+    var w = tipEl.offsetWidth, h = tipEl.offsetHeight, x = ev.clientX + 14, y = ev.clientY + 14;
+    if (x + w > window.innerWidth - 8) x = ev.clientX - w - 14;
+    if (y + h > window.innerHeight - 8) y = ev.clientY - h - 14;
+    tipEl.style.left = Math.max(8, x) + 'px'; tipEl.style.top = Math.max(8, y) + 'px';
+  }
+  function tipHide() { if (tipEl) tipEl.hidden = true; }
+  function hit(svg, x, y, w, h, onMove, label) {
+    var r = sv('rect', { x: x, y: y, width: w, height: h, fill: 'transparent', tabindex: 0, 'aria-label': label || '' }, svg);
+    r.style.outline = 'none';
+    r.addEventListener('pointermove', onMove); r.addEventListener('pointerleave', tipHide);
+    r.addEventListener('focus', function () { var b = r.getBoundingClientRect(); onMove({ clientX: b.left + b.width / 2, clientY: b.top + 20 }); });
+    r.addEventListener('blur', tipHide);
+    return r;
+  }
+  function topRounded(x, y, w, h, r) {
+    r = Math.min(r, h, w / 2);
+    return 'M' + x + ',' + (y + h) + 'L' + x + ',' + (y + r) + 'Q' + x + ',' + y + ' ' + (x + r) + ',' + y + 'L' + (x + w - r) + ',' + y + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'L' + (x + w) + ',' + (y + h) + 'Z';
+  }
+  function rightRounded(x, y, w, h, r) {
+    r = Math.min(r, w, h / 2);
+    return 'M' + x + ',' + y + 'L' + (x + w - r) + ',' + y + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'L' + (x + w) + ',' + (y + h - r) + 'Q' + (x + w) + ',' + (y + h) + ' ' + (x + w - r) + ',' + (y + h) + 'L' + x + ',' + (y + h) + 'Z';
+  }
+
+  /* stacked columns: received, expected, projected */
+  function colChart(box, cats) {
+    box.textContent = '';
+    if (!cats.length) { box.appendChild(el('div', 'empty-chart', 'No return dates yet.')); return; }
+    var W = Math.max(box.clientWidth, 260), H = 250, m = { l: 44, r: 6, t: 24, b: 28 };
+    var pw = W - m.l - m.r, ph = H - m.t - m.b, base = m.t + ph;
+    var maxv = Math.max.apply(null, cats.map(function (c) { return c.recv + c.exp + c.proj; })), sc = niceScale(maxv);
+    var svg = sv('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Profit by month' }, box);
+    grid(svg, m, W, H, sc);
+    var band = pw / cats.length, bw = Math.min(24, band * 0.55);
+    cats.forEach(function (c) {
+      var i = cats.indexOf(c), cx = m.l + band * (i + 0.5), x = cx - bw / 2, y = base;
+      var segs = [['recv', c.recv], ['exp', c.exp], ['proj', c.proj]].filter(function (s) { return s[1] > 0; });
+      segs.forEach(function (s, j) {
+        var h = s[1] / sc.max * ph, gap = j > 0 ? 2 : 0, top = j === segs.length - 1;
+        var hh = Math.max(1, h - gap);
+        if (top) sv('path', { d: topRounded(x, y - h, bw, hh, 4), fill: C[s[0]] }, svg);
+        else sv('rect', { x: x, y: y - h, width: bw, height: hh, fill: C[s[0]] }, svg);
+        y -= h;
+      });
+      var total = c.recv + c.exp + c.proj;
+      if (total > 0 && band >= 44) txt(svg, cx, y - 7, tick(total), { anchor: 'middle', fill: 'var(--ink)', weight: 600 });
+      if (band >= 34 || i % 2 === 0) txt(svg, cx, H - 8, c.label, { anchor: 'middle' });
+      hit(svg, cx - band / 2, m.t, band, ph + m.b, function (ev) {
+        tipShow(ev, c.label, [{ color: C.recv, name: 'Received', value: fmt(c.recv) }, { color: C.exp, name: 'Expected', value: fmt(c.exp) }, { color: C.proj, name: 'Projected', value: fmt(c.proj) }, { color: 'transparent', name: 'Total', value: fmt(total) }]);
+      }, c.label + ': total ' + fmt(total));
+    });
+  }
+
+  /* cumulative lines */
+  function lineChart(box, pts) {
+    box.textContent = '';
+    if (!pts.length) { box.appendChild(el('div', 'empty-chart', 'No dated returns yet.')); return; }
+    var W = Math.max(box.clientWidth, 260), H = 250, wide = W >= 460;
+    var m = { l: 44, r: wide ? 82 : 10, t: 18, b: 28 };
+    var pw = W - m.l - m.r, ph = H - m.t - m.b, base = m.t + ph;
+    var maxv = Math.max.apply(null, pts.map(function (p) { return p.outlook; })), sc = niceScale(maxv);
+    var svg = sv('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Profit growth by month' }, box);
+    grid(svg, m, W, H, sc);
+    var n = pts.length, pad = 10;
+    function X(i) { return n === 1 ? m.l + pw / 2 : m.l + pad + i * (pw - 2 * pad) / (n - 1); }
+    function Y(v) { return base - v / sc.max * ph; }
+    function path(key) { return pts.map(function (p, i) { return (i ? 'L' : 'M') + X(i) + ',' + Y(p[key]); }).join(''); }
+    var area = path('booked') + 'L' + X(n - 1) + ',' + base + 'L' + X(0) + ',' + base + 'Z';
+    var a = sv('path', { d: area, fill: C.exp }, svg); a.setAttribute('fill-opacity', '0.08');
+    sv('path', { d: path('outlook'), fill: 'none', stroke: C.proj, 'stroke-width': 2, 'stroke-dasharray': '5 4', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    sv('path', { d: path('booked'), fill: 'none', stroke: C.exp, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    sv('path', { d: path('recv'), fill: 'none', stroke: C.recv, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    var step = Math.ceil(n / Math.max(1, Math.floor(pw / 46)));
+    pts.forEach(function (p, i) { if (i % step === 0 || i === n - 1) txt(svg, X(i), H - 8, p.label, { anchor: 'middle' }); });
+    var last = pts[n - 1];
+    var ends = [['outlook', C.proj, 'With proj.'], ['booked', C.exp, 'Booked'], ['recv', C.recv, 'Received']];
+    ends.forEach(function (e) { sv('circle', { cx: X(n - 1), cy: Y(last[e[0]]), r: 4, fill: e[1], stroke: 'var(--surface)', 'stroke-width': 2 }, svg); });
+    if (wide) {
+      var used = [];
+      ends.forEach(function (e) {
+        var y = Y(last[e[0]]);
+        if (used.some(function (u) { return Math.abs(u - y) < 15; })) return;
+        used.push(y);
+        txt(svg, X(n - 1) + 10, y + 4, fmt(last[e[0]]), { fill: 'var(--ink)', weight: 600 });
+      });
+    }
+    var cross = sv('line', { y1: m.t, y2: base, stroke: 'var(--muted)', 'stroke-width': 1, visibility: 'hidden' }, svg);
+    var hl = ends.map(function (e) { return sv('circle', { r: 4, fill: e[1], stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden' }, svg); });
+    function show(ev) {
+      var r = svg.getBoundingClientRect(), px = ev.clientX - r.left, bi = 0, bd = 1e9;
+      pts.forEach(function (p, i) { var d = Math.abs(X(i) - px); if (d < bd) { bd = d; bi = i; } });
+      var p = pts[bi]; cross.setAttribute('x1', X(bi)); cross.setAttribute('x2', X(bi)); cross.setAttribute('visibility', 'visible');
+      ends.forEach(function (e, j) { hl[j].setAttribute('cx', X(bi)); hl[j].setAttribute('cy', Y(p[e[0]])); hl[j].setAttribute('visibility', 'visible'); });
+      tipShow(ev, p.label, [{ color: C.recv, name: 'Received', value: fmt(p.recv) }, { color: C.exp, name: 'Booked', value: fmt(p.booked) }, { color: C.proj, name: 'With projections', value: fmt(p.outlook) }]);
+    }
+    var ov = hit(svg, m.l, m.t, pw, ph + m.b, show, 'Profit growth by month');
+    ov.addEventListener('pointerleave', function () { cross.setAttribute('visibility', 'hidden'); hl.forEach(function (h) { h.setAttribute('visibility', 'hidden'); }); });
+  }
+
+  /* horizontal bars */
+  function barChart(box, rows) {
+    box.textContent = '';
+    if (!rows.length) { box.appendChild(el('div', 'empty-chart', 'No deals with an invested amount yet.')); return; }
+    var W = Math.max(box.clientWidth, 260), rowH = 46, H = rows.length * rowH;
+    var svg = sv('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Yield per deal' }, box);
+    var maxv = Math.max.apply(null, rows.map(function (r) { return r.v; })) * 1.1, avail = W - 54;
+    rows.forEach(function (r, i) {
+      var y0 = i * rowH, bh = 14, len = Math.max(4, r.v / maxv * avail);
+      var lab = r.label.length > 40 ? r.label.slice(0, 39) + '…' : r.label;
+      txt(svg, 0, y0 + 13, lab, { fill: 'var(--ink-2)', size: 12.5 });
+      sv('rect', { x: 0, y: y0 + 20, width: avail, height: bh, rx: 4, fill: 'var(--grid)' }, svg);
+      sv('path', { d: rightRounded(0, y0 + 20, len, bh, 4), fill: 'var(--mark)' }, svg);
+      txt(svg, len + 8, y0 + 20 + bh - 2, (r.v * 100).toFixed(1) + '%', { fill: 'var(--ink)', size: 12.5, weight: 600 });
+      hit(svg, 0, y0, W, rowH, function (ev) {
+        tipShow(ev, r.label, [{ color: 'var(--mark)', name: 'Yield', value: (r.v * 100).toFixed(1) + '%' }, { color: 'var(--mark)', name: 'Profit', value: fmt(r.profit) }, { color: 'var(--mark)', name: 'Invested', value: fmt(r.inv) }]);
+      }, r.label + ': ' + (r.v * 100).toFixed(1) + '%');
+    });
+  }
+
+  var rzTimer = null, lastW = 0;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      var w = document.documentElement.clientWidth; if (w === lastW) return; lastW = w;
+      clearTimeout(rzTimer); rzTimer = setTimeout(drawCharts, 120);
+    }).observe(document.documentElement);
+  }
+
+  /* ---------- tables ---------- */
+  function table(box, heads, rows, emptyMsg) {
+    box.textContent = '';
+    if (!rows.length) { box.appendChild(el('div', 'empty', emptyMsg)); return; }
+    var t = el('table'), thead = el('thead'), hr = el('tr');
+    heads.forEach(function (h) { hr.appendChild(el('th', h.num ? 'n' : '', h.t)); });
+    thead.appendChild(hr); t.appendChild(thead);
+    var tb = el('tbody');
+    rows.forEach(function (r) { tb.appendChild(r); });
+    t.appendChild(tb); box.appendChild(t);
+  }
+  function td(text, cls) { return el('td', cls || '', text); }
+  function pill(text, kind) { return el('span', 'pill' + (kind ? ' ' + kind : ''), text); }
+  function actBtn(label, fn) { var b = el('button', 'btn small', label); b.type = 'button'; b.addEventListener('click', fn); return b; }
+
+  var dealSort = { key: 'n', dir: 1 };
+  var DEAL_SORTS = {
+    n: function (o) { return num(o.c[0]); }, cust: function (o) { return (cellVal(o, 2) || cellVal(o, 1)).toLowerCase(); },
+    date: function (o) { return parseDMY(cellVal(o, 4)); }, inv: function (o) { return num(o.c[9]); },
+    agreed: function (o) { return num(o.c[13]); }, due: function (o) { return parseDMY(cellVal(o, 14)); }
+  };
+  function returnState(o, today) {
+    if (cellVal(o, 17) === 'Yes') return 'received';
+    var due = parseDMY(cellVal(o, 14));
+    return due && due < today ? 'overdue' : 'waiting';
+  }
+  function renderDeals() {
+    var today = today0(), q = $('f-q').value.trim().toLowerCase(), fs = $('f-status').value, fr = $('f-ret').value;
+    var list = data.deals.filter(function (o) {
+      if (fs && (cellVal(o, 3) || 'Active') !== fs) return false;
+      if (fr === 'unsent' ? cellVal(o, 10) !== 'No' : fr && returnState(o, today) !== fr) return false;
+      return !q || ['#' + cellVal(o, 0), cellVal(o, 1), cellVal(o, 2), cellVal(o, 11), cellVal(o, 18)].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    var get = DEAL_SORTS[dealSort.key];
+    list.sort(function (a, b) {
+      var x = get(a), y = get(b);
+      if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1;  // blanks last
+      return (x < y ? -1 : x > y ? 1 : 0) * dealSort.dir;
+    });
+    var rows = list.map(function (o) {
+      var tr = el('tr');
+      tr.appendChild(td(cellVal(o, 0), 'n'));
+      tr.appendChild(td(cellVal(o, 2) || cellVal(o, 1)));
+      var st = el('td'); st.appendChild(pill(cellVal(o, 3) || 'Active', cellVal(o, 3) === 'Closed' ? 'closed' : ''));
+      if (cellVal(o, 10) === 'No') { var ns = pill('Not sent', 'warn'); ns.style.marginLeft = '6px'; st.appendChild(ns); }
+      tr.appendChild(st);
+      tr.appendChild(td(dateTxt(cellVal(o, 4)), 'n'));
+      tr.appendChild(td(cellVal(o, 9), 'n'));
+      tr.appendChild(td(txnText(cellVal(o, 11)), 'txn'));
+      tr.appendChild(td(cellVal(o, 13), 'n'));
+      tr.appendChild(td(cellVal(o, 12)));
+      tr.appendChild(td(dateTxt(cellVal(o, 14)) || 'TBD', 'n'));
+      var rc = el('td'), state = returnState(o, today);
+      if (state === 'received') rc.appendChild(pill(cellVal(o, 20) ? 'Received ' + cellVal(o, 20).slice(0, 5) : 'Received', 'good'));
+      else if (state === 'overdue') rc.appendChild(pill('Overdue', 'bad'));
+      else rc.appendChild(pill('Waiting', 'warn'));
+      tr.appendChild(rc);
+      tr.appendChild(td(cellVal(o, 15), 'n'));
+      tr.appendChild(td(cellVal(o, 16), 'n'));
+      tr.appendChild(td(cellVal(o, 19) || cellVal(o, 18), 'note'));
+      var act = el('td', 'acts');
+      act.appendChild(actBtn('Edit', function () { startEditDeal(o); }));
+      if (state !== 'received') act.appendChild(actBtn('Mark received', function () { openRecv(o); }));
+      tr.appendChild(act);
+      return tr;
+    });
+    $('f-count').textContent = list.length === data.deals.length ? '' : list.length + ' of ' + data.deals.length + ' deals';
+    var heads = [{ t: '#', num: 1, key: 'n' }, { t: 'Customer', key: 'cust' }, { t: 'Status' }, { t: 'Date', num: 1, key: 'date' }, { t: 'Invested', num: 1, key: 'inv' }, { t: 'Transaction no.' }, { t: 'Agreed return', num: 1, key: 'agreed' }, { t: 'Return type' }, { t: 'Due', num: 1, key: 'due' }, { t: 'Return' }, { t: 'Logistics', num: 1 }, { t: 'Actual', num: 1 }, { t: 'Notes / check' }, { t: '' }];
+    table($('deals-box'), heads, rows,
+      !loadedOnce ? 'Loading.' : data.deals.length ? 'No deals match. Clear the search or the filters.' : 'No deals yet. Use + Add deal to enter the first one.');
+    $('deals-box').querySelectorAll('th').forEach(function (th, i) {
+      var h = heads[i]; if (!h.key) return;
+      th.classList.add('sort'); th.tabIndex = 0;
+      th.setAttribute('aria-sort', dealSort.key === h.key ? (dealSort.dir > 0 ? 'ascending' : 'descending') : 'none');
+      function flip() { dealSort = { key: h.key, dir: dealSort.key === h.key ? -dealSort.dir : 1 }; renderDeals(); }
+      th.addEventListener('click', flip);
+      th.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+    });
+  }
+  ['f-q', 'f-status', 'f-ret'].forEach(function (id) { $(id).addEventListener('input', renderDeals); });
+
+  /* a deal can be paid in several transfers; the numbers are stored one per line */
+  function txnText(t) { return String(t || '').split(/\s*[\n,]\s*/).filter(Boolean).join(', '); }
+
+  function projText(o) {
+    if (!/recurring/i.test(cellVal(o, 2))) return '';
+    var mode = cellVal(o, 13) || 'latest';
+    return mode === 'none' ? 'None' : mode === 'fixed' ? cellVal(o, 14) + ' a cycle' : 'Latest deal';
+  }
+  function renderCust() {
+    var m = loadedOnce ? model() : null;
+    var rows = (m ? m.custs : []).map(function (c) {
+      var tr = el('tr'), n = el('td');
+      tr.appendChild(td(c.id));
+      n.appendChild(el('b', 'an', c.name));
+      var extra = [c.phone, c.notes].filter(Boolean).join(' \u00b7 ');
+      if (extra) { var ex = el('span', 'as', extra); ex.style.whiteSpace = 'normal'; ex.style.maxWidth = '320px'; n.appendChild(ex); }
+      tr.appendChild(n);
+      tr.appendChild(td(String(c.arrs.length), 'n')); tr.appendChild(td(String(c.deals), 'n'));
+      tr.appendChild(td(fmt(c.capital), 'n')); tr.appendChild(td(fmt(c.received), 'n')); tr.appendChild(td(fmt(c.toCome), 'n')); tr.appendChild(td(fmt(c.total), 'n'));
+      var act = el('td', 'acts');
+      act.appendChild(actBtn('Statement', function () { showStatement(c.id); }));
+      act.appendChild(actBtn('+ Arrangement', function () { startAddArr(c.id); }));
+      act.appendChild(actBtn('Edit', function () { startEditCust(c.o); }));
+      tr.appendChild(act);
+      return tr;
+    });
+    table($('cust-box'), [{ t: 'ID' }, { t: 'Customer' }, { t: 'Arrangements', num: 1 }, { t: 'Deals', num: 1 }, { t: 'Capital', num: 1 }, { t: 'Profit received', num: 1 }, { t: 'Profit to come', num: 1 }, { t: 'Total profit', num: 1 }, { t: '' }], rows,
+      loadedOnce ? 'No customers yet. Use + New customer to add the first one.' : 'Loading.');
+  }
+
+  function renderArr() {
+    var nums = [3, 4, 5, 6, 7, 8, 9];
+    var rows = data.arr.map(function (o) {
+      var tr = el('tr');
+      for (var i = 0; i < 10; i++) tr.appendChild(td(i === 4 || i === 5 ? dateTxt(cellVal(o, i)) : cellVal(o, i), nums.indexOf(i) >= 0 ? 'n' : ''));
+      tr.appendChild(td(projText(o)));
+      var link = cellVal(o, 10).trim(), cc = el('td', 'acts');
+      if (/^(https:\/\/|\/contracts\/)/.test(link)) { var a = el('a', 'doclink', 'Open'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; cc.appendChild(a); }
+      cc.appendChild(actBtn(link ? 'Replace' : 'Upload', function () { pickContract(o); }));
+      tr.appendChild(cc);
+      var act = el('td', 'acts'); act.appendChild(actBtn('Edit', function () { startEditArr(o); })); tr.appendChild(act);
+      return tr;
+    });
+    table($('arr-box'), [{ t: 'ID' }, { t: 'Customer' }, { t: 'Type' }, { t: 'Term', num: 1 }, { t: 'Start', num: 1 }, { t: 'End', num: 1 }, { t: 'Deals', num: 1 }, { t: 'Agreed return', num: 1 }, { t: 'Received', num: 1 }, { t: 'Outstanding', num: 1 }, { t: 'Projection' }, { t: 'Contract' }, { t: '' }], rows,
+      loadedOnce ? 'No arrangements yet.' : 'Loading.');
+  }
+
+  function renderReinv() {
+    var rows = data.reinv.map(function (o) {
+      var tr = el('tr');
+      for (var i = 0; i < 7; i++) tr.appendChild(td(i === 0 || i === 4 ? dateTxt(cellVal(o, i)) : cellVal(o, i), i === 2 || i === 0 || i === 4 ? 'n' : (i === 6 ? 'note' : '')));
+      var act = el('td', 'acts'); act.appendChild(actBtn('Edit', function () { startEditReinv(o); })); tr.appendChild(act);
+      return tr;
+    });
+    table($('reinv-box'), [{ t: 'Date', num: 1 }, { t: 'Source deal #' }, { t: 'Amount', num: 1 }, { t: 'Destination' }, { t: 'Expected return', num: 1 }, { t: 'Received' }, { t: 'Notes' }, { t: '' }], rows,
+      loadedOnce ? 'Nothing rolled over yet. Use + Add reinvestment to record the first one.' : 'Loading.');
+  }
+
+  var numTouched = false, idTouched = false;
+  function fillSelects() {
+    var sel = $('d-arr'), keep = sel.value; sel.textContent = '';
+    data.arr.forEach(function (o) { var op = el('option', '', cellVal(o, 0) + ' · ' + cellVal(o, 1)); op.value = cellVal(o, 0); sel.appendChild(op); });
+    if (keep) ensureOption(sel, keep);
+    var rs = $('r-deal'), rk = rs.value; rs.textContent = '';
+    data.deals.forEach(function (o) { var op = el('option', '', '#' + cellVal(o, 0) + ' · ' + (cellVal(o, 2) || cellVal(o, 1))); op.value = cellVal(o, 0); rs.appendChild(op); });
+    if (rk) ensureOption(rs, rk);
+    var cs = $('a-custsel'), ck = cs.value; cs.textContent = '';
+    data.cust.forEach(function (o) { var op = el('option', '', cellVal(o, 1)); op.value = cellVal(o, 0); cs.appendChild(op); });
+    var nw = el('option', '', 'New customer\u2026'); nw.value = '__new'; cs.appendChild(nw);
+    cs.value = ck || '__new'; if (!cs.value) cs.value = '__new';
+    syncCust();
+    var dd = $('r-destdeal'), dk = dd.value; dd.textContent = '';
+    var other = el('option', '', 'Something else (describe it)'); other.value = ''; dd.appendChild(other);
+    data.deals.forEach(function (o) { var op = el('option', '', 'Deal #' + cellVal(o, 0) + ' \u00b7 ' + (cellVal(o, 2) || cellVal(o, 1))); op.value = cellVal(o, 0); dd.appendChild(op); });
+    dd.value = dk; if (dd.value !== dk) dd.value = '';
+    syncDest();
+    if (!numTouched) $('d-num').value = nextDealNum();
+    if (!idTouched) $('a-id').value = nextArrId();
+    onArrChange(); dealPreview();
+  }
+  function ensureOption(sel, v) {
+    if (![].some.call(sel.options, function (op) { return op.value === v; })) { var op = el('option', '', v); op.value = v; sel.appendChild(op); }
+    sel.value = v;
+  }
+  $('d-num').addEventListener('input', function () { numTouched = true; });
+  $('a-id').addEventListener('input', function () { idTouched = true; });
+  function nextDealNum() { var m = 0; data.deals.forEach(function (o) { var n = num(o.c[0]); if (n && n > m) m = n; }); return m + 1; }
+  function nextArrId() {
+    var m = 0; data.arr.forEach(function (o) { var x = /(\d+)\s*$/.exec(cellVal(o, 0)); if (x && +x[1] > m) m = +x[1]; });
+    return 'ARR-' + String(m + 1).padStart(2, '0');
+  }
+  var lastLoad = 0;
+  function renderAll() {
+    if (loadedOnce) lastLoad = Date.now();
+    renderOverview(); renderCust(); renderDeals(); renderArr(); renderReinv(); fillSelects();
+    if (stCust && !$('p-statement').hidden) showStatement(stCust, true);
+  }
+  /* keep the dashboard current: reload when the page comes back into view and every 2 minutes,
+     but never while a form or dialog is open, so nothing you are typing is disturbed */
+  function autoRefresh() {
+    if (document.hidden || busy || !loadedOnce) return;
+    if (['p-add-deal', 'p-add-arr', 'p-add-reinv', 'p-add-cust'].some(function (id) { return !$(id).hidden; }) || !$('recv-overlay').hidden || !$('conn-overlay').hidden) return;
+    if (Date.now() - lastLoad < 60000) return;
+    load();
+  }
+  document.addEventListener('visibilitychange', autoRefresh);
+  window.addEventListener('focus', autoRefresh);
+  setInterval(autoRefresh, 120000);
+  function iso(dmy) { var d = parseDMY(dmy); return d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : ''; }
+  function nv(x) { var n = num(x); return n == null ? '' : n; }
+
+  /* ---------- tabs ---------- */
+  var PANELS = ['overview', 'customers', 'deals', 'arrangements', 'reinvest', 'history', 'statement', 'add-cust', 'add-deal', 'add-arr', 'add-reinv'];
+  function go(name) {
+    PANELS.forEach(function (p) { $('p-' + p).hidden = p !== name; });
+    // a form keeps its own tab highlighted: adding a deal shows under Deals, and so on
+    var tab = { 'add-deal': 'deals', 'add-arr': 'arrangements', 'add-reinv': 'reinvest', 'add-cust': 'customers', statement: 'customers' }[name] || name;
+    document.querySelectorAll('.tab').forEach(function (t) { t.setAttribute('aria-selected', String(t.getAttribute('data-tab') === tab)); });
+    if (name === 'overview') drawCharts();
+    if (name === 'history') loadHistory();
+  }
+  function nav(name) {
+    if (name === 'add-deal') startAddDeal();
+    else if (name === 'add-arr') startAddArr();
+    else if (name === 'add-reinv') startAddReinv();
+    else if (name === 'add-cust') startAddCust();
+    else go(name);
+  }
+  document.querySelectorAll('.tab').forEach(function (t) { t.addEventListener('click', function () { nav(t.getAttribute('data-tab')); }); });
+  document.querySelectorAll('[data-goto]').forEach(function (b) { b.addEventListener('click', function () { nav(b.getAttribute('data-goto')); }); });
+  $('refresh').addEventListener('click', function () { load(); });
+
+  function setBusy(btn, on, label) { busy = on; btn.disabled = on; btn.textContent = on ? 'Saving…' : label; }
+
+  /* ---------- deal form (add and edit) ---------- */
+  var editDeal = null;
+  function onArrChange() {
+    var id = $('d-arr').value, o = data.arr.filter(function (a) { return cellVal(a, 0) === id; })[0];
+    $('d-cust').textContent = o ? (cellVal(o, 1) + ' · ' + cellVal(o, 2)) : 'Add the customer on the Arrangements tab first.';
+    if (o && !editDeal) $('d-rtype').value = /recurring/i.test(cellVal(o, 2)) ? 'Profit Only' : 'Profit + Principal';
+  }
+  function dealPreview() {
+    var sell = num($('d-sell').value), dist = num($('d-dist').value), inv = num($('d-inv').value), pv = $('d-preview');
+    pv.textContent = '';
+    if (sell == null || dist == null) { pv.appendChild(el('span', '', 'Enter the selling and distributor prices to see the profit.')); return; }
+    var profit = sell - dist;
+    var agreed = $('d-rtype').value === 'Profit + Principal' ? dist + profit : profit;
+    var s1 = el('span', '', 'Profit '); s1.appendChild(el('b', '', fmt(profit)));
+    var s2 = el('span', '', 'Agreed return '); s2.appendChild(el('b', '', fmt(agreed)));
+    var s3 = el('span', '', 'Yield '); s3.appendChild(el('b', '', inv ? (profit / inv * 100).toFixed(1) + '%' : 'n/a'));
+    pv.appendChild(s1); pv.appendChild(s2); pv.appendChild(s3);
+    if (editDeal) { var lg = num($('d-logi').value); if (lg != null) { var s4 = el('span', '', 'Actual return '); s4.appendChild(el('b', '', fmt(agreed - lg))); pv.appendChild(s4); } }
+    if (profit < 0) pv.appendChild(el('span', 'flag', 'The selling price is below the distributor price.'));
+    if (inv != null && inv !== dist) pv.appendChild(el('span', 'flag', 'Invested amount differs from the distributor price by ' + fmt(Math.abs(inv - dist)) + '.'));
+  }
+  $('d-arr').addEventListener('change', function () { onArrChange(); if (!editDeal) prefillFromLast($('d-arr').value, null, false); dealPreview(); });
+  ['d-sell', 'd-dist', 'd-inv', 'd-rtype', 'd-logi'].forEach(function (id) { $(id).addEventListener('input', dealPreview); $(id).addEventListener('change', dealPreview); });
+  $('d-dist').addEventListener('input', function () { if (invAuto) { $('d-inv').value = $('d-dist').value; dealPreview(); } });
+  $('d-inv').addEventListener('input', function () { invAuto = false; });
+
+  function setDealMode() {
+    var ed = !!editDeal;
+    $('deal-title').textContent = ed ? 'Edit deal #' + editDeal.n : 'Add a deal';
+    $('deal-sub').textContent = ed ? 'Profit, agreed return and actual return recalculate on their own.' : 'Customer, profit, agreed return and the check column fill in on their own.';
+    $('f-logi-w').hidden = !ed; $('f-recv-w').hidden = !ed; $('d-delete').hidden = !ed; syncRdate();
+    $('d-submit').textContent = ed ? 'Save changes' : 'Add deal';
+  }
+  function startAddDeal() {
+    editDeal = null; $('deal-form').reset(); invAuto = true; numTouched = false; $('d-date').value = isoToday();
+    setDealMode(); fillSelects(); go('add-deal');
+  }
+  /* the latest deal recorded for an arrangement, used to fill in the next cycle */
+  function lastDealOf(arrId) {
+    var ds = data.deals.filter(function (o) { return cellVal(o, 1) === arrId; });
+    ds.sort(function (x, y) {
+      var a = parseDMY(cellVal(x, 14)) || parseDMY(cellVal(x, 4)) || 0, b = parseDMY(cellVal(y, 14)) || parseDMY(cellVal(y, 4)) || 0;
+      return (a - b) || (num(x.c[0]) - num(y.c[0]));
+    });
+    return ds.length ? ds[ds.length - 1] : null;
+  }
+  function arrTermOf(arrId) { var o = data.arr.filter(function (a) { return cellVal(a, 0) === arrId; })[0]; return o ? { type: cellVal(o, 2), term: num(o.c[3]) } : null; }
+  /* fill amounts from the last cycle; only fills empty fields so typed values are kept */
+  function prefillFromLast(arrId, due, force) {
+    var last = lastDealOf(arrId), info = arrTermOf(arrId);
+    if (!last || !info || !/recurring/i.test(info.type)) return false;
+    if (!force && ($('d-mrp').value || $('d-sell').value || $('d-dist').value)) return false;
+    $('d-mrp').value = nv(last.c[5]); $('d-sell').value = nv(last.c[6]); $('d-dist').value = nv(last.c[7]); $('d-inv').value = nv(last.c[7]);
+    invAuto = true;
+    $('d-rtype').value = cellVal(last, 12) === 'Profit + Principal' ? 'Profit + Principal' : 'Profit Only';
+    $('d-sent').value = 'No';
+    var lastDue = parseDMY(cellVal(last, 14));
+    var nd = due || (lastDue ? addMonths(lastDue, 1) : null);
+    if (nd && (force || !$('d-due').value)) $('d-due').value = nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0') + '-' + String(nd.getDate()).padStart(2, '0');
+    var count = data.deals.filter(function (o) { return cellVal(o, 1) === arrId; }).length;
+    if (!$('d-notes').value && info.term) $('d-notes').value = 'Cycle ' + (count + 1) + ' of ' + Math.round(info.term) + '.';
+    return true;
+  }
+  function startAddDealFor(arrId) {
+    startAddDeal();
+    ensureOption($('d-arr'), arrId); onArrChange();
+    prefillFromLast(arrId, null, false);
+    dealPreview();
+  }
+  function startAddDealFromProj(p) {
+    startAddDeal();
+    ensureOption($('d-arr'), p.arr); onArrChange();
+    prefillFromLast(p.arr, p.due, true);
+    dealPreview();
+    toast('Filled in from the last cycle. Check the amounts and dates, then add the deal.');
+  }
+  function startEditDeal(o) {
+    editDeal = { row: o.row, n: cellVal(o, 0) };
+    $('deal-form').reset(); invAuto = false; numTouched = true;
+    ensureOption($('d-arr'), cellVal(o, 1));
+    $('d-num').value = nv(o.c[0]); $('d-status').value = cellVal(o, 3) === 'Closed' ? 'Closed' : 'Active'; $('d-date').value = iso(cellVal(o, 4));
+    $('d-mrp').value = nv(o.c[5]); $('d-sell').value = nv(o.c[6]); $('d-dist').value = nv(o.c[7]); $('d-inv').value = nv(o.c[9]);
+    $('d-sent').value = cellVal(o, 10) === 'Yes' ? 'Yes' : 'No'; $('d-txn').value = cellVal(o, 11).replace(/\s*\n\s*/g, ', ');
+    $('d-rtype').value = cellVal(o, 12) === 'Profit + Principal' ? 'Profit + Principal' : 'Profit Only';
+    $('d-due').value = iso(cellVal(o, 14)); $('d-logi').value = nv(o.c[15]); $('d-recv').value = cellVal(o, 17) === 'Yes' ? 'Yes' : 'No';
+    $('d-notes').value = cellVal(o, 18); $('d-rdate').value = iso(cellVal(o, 20));
+    onArrChange(); setDealMode(); dealPreview(); go('add-deal');
+  }
+
+  $('deal-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var n = num($('d-num').value), mrp = num($('d-mrp').value), sell = num($('d-sell').value), dist = num($('d-dist').value), inv = num($('d-inv').value);
+    if ([n, mrp, sell, dist, inv].some(function (v) { return v == null || v < 0; })) { toast('Check the number fields. None can be empty or negative.', true); return; }
+    if (!$('d-arr').value) { toast('Pick an arrangement. Add the customer on the Arrangements tab first if they are new.', true); return; }
+    if (!$('d-date').value) { toast('Enter the investment date.', true); return; }
+    var ed = editDeal, origN = ed ? num(ed.n) : null;
+    if (n !== origN && data.deals.some(function (o) { return num(o.c[0]) === n; })) { toast('Deal #' + n + ' already exists. Use another number.', true); return; }
+    var lgTxt = $('d-logi').value.trim();
+    if (ed && lgTxt !== '' && !(num(lgTxt) >= 0)) { toast('Logistics must be a number of 0 or more, or empty.', true); return; }
+    var f = { n: n, arr: $('d-arr').value, status: $('d-status').value, date: $('d-date').value, mrp: mrp, sell: sell, dist: dist, inv: inv, sent: $('d-sent').value, txn: $('d-txn').value.trim(), rtype: $('d-rtype').value, due: $('d-due').value, notes: $('d-notes').value.trim() };
+    if (ed) { f.logi = lgTxt === '' ? '' : num(lgTxt); f.recv = $('d-recv').value; f.recvDate = $('d-rdate').value; }
+    var label = ed ? 'Save changes' : 'Add deal', btn = $('d-submit'); setBusy(btn, true, label);
+    (ed ? backend.updateDeal(ed.row, ed.n, f) : backend.addDeal(f)).then(function (row) {
+      toast(ed ? 'Deal #' + n + ' saved.' : 'Deal #' + n + ' added. The dashboard now includes it.');
+      setBusy(btn, false, label); editDeal = null; $('deal-form').reset(); invAuto = true; numTouched = false; $('d-date').value = isoToday(); setDealMode();
+      go(ed ? 'deals' : 'overview'); return load();
+    }).catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+  });
+
+  /* ---------- arrangement form (add and edit) ---------- */
+  var editArr = null;
+  function setArrMode() {
+    var ed = !!editArr;
+    $('arr-title').textContent = ed ? 'Edit arrangement ' + editArr.id : 'New arrangement';
+    $('arr-sub').textContent = ed ? 'The ID stays the same so its deals stay linked.' : 'Start, end and the totals fill in from its deals.';
+    $('a-id').readOnly = ed; $('a-delete').hidden = !ed; $('a-submit').textContent = ed ? 'Save changes' : 'Add arrangement';
+  }
+  /* the type is stored as "<months>-month recurring" or "One-time"; the form picks Recurring + any term */
+  function syncTerm() {
+    var rec = $('a-type').value === 'Recurring';
+    $('a-term').disabled = !rec; $('a-term').required = rec; $('a-term-hint').hidden = !rec;
+    if (!rec) $('a-term').value = '';
+  }
+  function startAddArr(custId) {
+    editArr = null; $('arr-form').reset(); idTouched = false; $('a-id').value = nextArrId();
+    $('a-type').value = 'Recurring'; syncTerm();
+    $('a-custsel').value = typeof custId === 'string' && custId ? custId : '__new'; syncCust(); syncProj();
+    setArrMode(); go('add-arr');
+  }
+  function startEditArr(o) {
+    editArr = { row: o.row, id: cellVal(o, 0) };
+    $('arr-form').reset(); idTouched = true; $('a-id').value = editArr.id;
+    $('a-custsel').value = cellVal(o, 11) || '__new'; $('a-label').value = cellVal(o, 12);
+    $('a-proj').value = cellVal(o, 13) || 'latest'; $('a-cycle').value = nv(o.c[14]); syncCust(); syncProj();
+    var t = cellVal(o, 2), rec = /recurring/i.test(t);
+    $('a-type').value = rec ? 'Recurring' : 'One-time'; syncTerm();
+    if (rec) { var mm = /^(\d+)/.exec(t); $('a-term').value = nv(o.c[3]) !== '' ? nv(o.c[3]) : (mm ? mm[1] : ''); }
+    setArrMode(); go('add-arr');
+  }
+  $('a-type').addEventListener('change', syncTerm);
+  $('arr-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var ed = editArr, id = ed ? ed.id : $('a-id').value.trim(), custSel = $('a-custsel').value, isNew = custSel === '__new';
+    var cust = isNew ? $('a-newcust').value.trim() : custName(custSel);
+    if (!id || !cust) { toast(isNew ? 'Enter the new customer\u2019s name, or pick a customer.' : 'Enter an ID.', true); return; }
+    if ($('a-proj').value === 'fixed' && !(num($('a-cycle').value) >= 0)) { toast('Enter the profit per cycle, or choose another projection.', true); $('a-cycle').focus(); return; }
+    if (!ed && data.arr.some(function (o) { return cellVal(o, 0).toLowerCase() === id.toLowerCase(); })) { toast('The ID ' + id + ' is already used.', true); return; }
+    var cf = $('a-file').files[0]; if (cf && cf.size > MAX_CONTRACT) { toast(errText({ code: 'file_too_big' }), true); return; }
+    var rec = $('a-type').value === 'Recurring', term = num($('a-term').value);
+    if (rec && !(term >= 1 && term <= 120 && Math.round(term) === term)) { toast('Enter the term as a whole number of months, for example 3.', true); $('a-term').focus(); return; }
+    var f = { id: id, custId: isNew ? '' : custSel, newCust: isNew ? cust : '', label: $('a-label').value.trim(), type: rec ? term + '-month recurring' : 'One-time', term: rec ? term : '',
+      projection: $('a-proj').value, cycleProfit: $('a-cycle').value };
+    var label = ed ? 'Save changes' : 'Add arrangement', btn = $('a-submit'); setBusy(btn, true, label);
+    (ed ? backend.updateArrangement(ed.row, ed.id, f) : backend.addArrangement(f)).then(function (r) {
+      var file = $('a-file').files[0];
+      var up = file ? (btn.textContent = 'Uploading contract\u2026', backend.uploadContract(r, id, cust, file).then(function () { return true; }, function (err) { toast(errText(err, true), true); return false; })) : Promise.resolve(null);
+      return up.then(function (uploaded) {
+      setBusy(btn, false, label); editArr = null; idTouched = false; $('arr-form').reset(); $('a-type').value = 'Recurring'; syncTerm(); setArrMode();
+      var note = uploaded ? ' Contract uploaded.' : '';
+      if (ed) { if (uploaded !== false) toast('Arrangement ' + id + ' saved.' + note); go('arrangements'); return load(); }
+      // next step: the first deal for the new arrangement
+      return load().then(function () { startAddDealFor(id); if (uploaded !== false) toast('Arrangement ' + id + ' added.' + note + ' Now add its first deal.'); });
+      });
+    }).catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+  });
+
+  /* ---------- contract upload from the Arrangements table ---------- */
+  var pickFor = null;
+  function pickContract(o) { if (busy) return; pickFor = o; $('contract-pick').value = ''; $('contract-pick').click(); }
+  $('contract-pick').addEventListener('change', function () {
+    var file = this.files[0], o = pickFor; pickFor = null;
+    if (!file || !o) return;
+    if (file.size > MAX_CONTRACT) { toast(errText({ code: 'file_too_big' }), true); return; }
+    busy = true; toast('Uploading ' + file.name + '\u2026');
+    backend.uploadContract(o.row, cellVal(o, 0), cellVal(o, 1), file).then(function () {
+      busy = false; toast('Contract for ' + cellVal(o, 0) + ' saved.'); return load();
+    }).catch(function (err) { busy = false; toast(errText(err, true), true); });
+  });
+
+  /* ---------- reinvestment form (add and edit) ---------- */
+  var editReinv = null;
+  function setReinvMode() {
+    var ed = !!editReinv;
+    $('reinv-title').textContent = ed ? 'Edit reinvestment' : 'Add a reinvestment';
+    $('reinv-sub').textContent = ed ? 'Change the details and save.' : 'Records profit rolled into another investment.';
+    $('r-submit').textContent = ed ? 'Save changes' : 'Add reinvestment'; $('r-delete').hidden = !ed;
+  }
+  function startAddReinv() { editReinv = null; $('reinv-form').reset(); $('r-date').value = isoToday(); syncDest(); setReinvMode(); go('add-reinv'); }
+  function startEditReinv(o) {
+    editReinv = { row: o.row, date: cellVal(o, 0), amount: cellVal(o, 2) };
+    $('reinv-form').reset();
+    $('r-date').value = iso(cellVal(o, 0)); ensureOption($('r-deal'), cellVal(o, 1)); $('r-amt').value = nv(o.c[2]);
+    $('r-destdeal').value = cellVal(o, 7); $('r-dest').value = cellVal(o, 7) ? '' : cellVal(o, 3); syncDest();
+    $('r-due').value = iso(cellVal(o, 4)); $('r-recv').value = cellVal(o, 5) === 'Yes' ? 'Yes' : 'No'; $('r-notes').value = cellVal(o, 6);
+    setReinvMode(); go('add-reinv');
+  }
+  $('reinv-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var amt = num($('r-amt').value), destDeal = $('r-destdeal').value, dest = destDeal ? '' : $('r-dest').value.trim();
+    if (amt == null || amt < 0 || (!destDeal && !dest) || !$('r-deal').value || !$('r-date').value) { toast('Enter the date, the source deal, an amount and where it went.', true); return; }
+    var ed = editReinv;
+    var f = { date: $('r-date').value, deal: num($('r-deal').value), amount: amt, destDeal: destDeal, dest: dest, due: $('r-due').value, recv: $('r-recv').value, notes: $('r-notes').value.trim() };
+    var label = ed ? 'Save changes' : 'Add reinvestment', btn = $('r-submit'); setBusy(btn, true, label);
+    (ed ? backend.updateReinvestment(ed.row, { date: ed.date, amount: ed.amount }, f) : backend.addReinvestment(f)).then(function (r) {
+      toast(ed ? 'Reinvestment saved.' : 'Reinvestment added.');
+      setBusy(btn, false, label); editReinv = null; $('reinv-form').reset(); $('r-date').value = isoToday(); setReinvMode();
+      go('reinvest'); return load();
+    }).catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+  });
+
+  /* ---------- mark received ---------- */
+  function recvPreview() {
+    var agreed = recvRow ? num(recvRow.c[13]) : null, lg = num($('x-logi').value), pv = $('recv-preview');
+    pv.textContent = '';
+    if (agreed == null) { pv.appendChild(el('span', '', 'Actual return is calculated when you save.')); return; }
+    if (lg == null) { pv.appendChild(el('span', '', 'Enter the logistics cost to see the actual return.')); return; }
+    var s = el('span', '', 'Actual return '); s.appendChild(el('b', '', fmt(agreed - lg))); pv.appendChild(s);
+  }
+  function openRecv(o) {
+    recvRow = o; $('x-logi').value = ''; $('x-date').value = isoToday();
+    $('recv-sub').textContent = 'Deal #' + cellVal(o, 0) + ' · ' + (cellVal(o, 2) || cellVal(o, 1)) + (cellVal(o, 13) ? ' · agreed return ' + cellVal(o, 13) : '');
+    recvPreview(); $('recv-overlay').hidden = false; $('x-logi').focus();
+  }
+  function closeRecv() { $('recv-overlay').hidden = true; recvRow = null; }
+  $('x-cancel').addEventListener('click', closeRecv);
+  $('recv-overlay').addEventListener('click', function (e) { if (e.target === $('recv-overlay')) closeRecv(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('recv-overlay').hidden) closeRecv(); });
+  $('x-logi').addEventListener('input', recvPreview);
+  $('recv-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy || !recvRow) return;
+    var lg = num($('x-logi').value); if (lg == null || lg < 0) { toast('Enter the logistics cost. Use 0 if there was none.', true); $('x-logi').focus(); return; }
+    var row = recvRow.row, deal = cellVal(recvRow, 0), btn = $('x-submit'); setBusy(btn, true, 'Mark received and close');
+    backend.markReceived(row, deal, lg, $('x-date').value).then(function () {
+      toast('Deal #' + deal + ' marked received and closed.');
+      setBusy(btn, false, 'Mark received and close'); closeRecv(); return load();
+    }).catch(function (err) { setBusy(btn, false, 'Mark received and close'); toast(errText(err, true), true); });
+  });
+
+  /* ---------- data writes ---------- */
+  function rowOf(r) { return r.row; }
+  function ext(a, b) { for (var k in b) a[k] = b[k]; return a; }
+  var backend = {
+    addDeal: function (f) { return api('addDeal', ext({}, f)).then(rowOf); },
+    updateDeal: function (row, orig, f) { return api('updateDeal', ext({ row: row, orig: orig }, f)).then(rowOf); },
+    addArrangement: function (f) { return api('addArrangement', ext({}, f)).then(rowOf); },
+    updateArrangement: function (row, orig, f) { return api('updateArrangement', ext({ row: row, orig: orig }, f)).then(rowOf); },
+    addReinvestment: function (f) { return api('addReinvestment', ext({}, f)).then(rowOf); },
+    updateReinvestment: function (row, orig, f) { return api('updateReinvestment', ext({ row: row, orig: orig }, f)).then(rowOf); },
+    markReceived: function (row, deal, lg, date) { return api('markReceived', { row: row, deal: deal, logistics: lg, date: date }).then(rowOf); },
+    deleteDeal: function (row, orig) { return api('deleteDeal', { row: row, orig: orig }); },
+    deleteArrangement: function (row, orig) { return api('deleteArrangement', { row: row, orig: orig }); },
+    deleteReinvestment: function (row, orig) { return api('deleteReinvestment', { row: row, orig: orig }); },
+    uploadContract: function (row, orig, cust, file) {
+      return new Promise(function (res, rej) {
+        var fr = new FileReader();
+        fr.onload = function () { res(String(fr.result).split(',')[1] || ''); };
+        fr.onerror = function () { rej({ code: 'read_failed' }); };
+        fr.readAsDataURL(file);
+      }).then(function (b64) {
+        return api('uploadContract', { row: row, orig: orig, cust: cust, name: file.name, mimeType: file.type || 'application/octet-stream', data: b64 });
+      }).then(function (r) { return r.url; });
+    }
+  };
+  /* ---------- end data writes ---------- */
+
+  /* ---------- start ---------- */
+  $('d-date').value = isoToday(); $('r-date').value = isoToday();
+  /* ---------- delete ---------- */
+  function delWith(btn, label, question, run, done) {
+    if (busy || !window.confirm(question)) return;
+    setBusy(btn, true, label); btn.textContent = 'Deleting\u2026';
+    run().then(function () { setBusy(btn, false, label); done(); return load(); })
+      .catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+  }
+  $('d-delete').addEventListener('click', function () {
+    var ed = editDeal; if (!ed) return;
+    delWith(this, 'Delete deal', 'Delete deal #' + ed.n + '? It is removed from the tracker and from the sheet at the next backup.',
+      function () { return backend.deleteDeal(ed.row, ed.n); },
+      function () { toast('Deal #' + ed.n + ' deleted.'); editDeal = null; $('deal-form').reset(); invAuto = true; numTouched = false; $('d-date').value = isoToday(); setDealMode(); go('deals'); });
+  });
+  $('a-delete').addEventListener('click', function () {
+    var ed = editArr; if (!ed) return;
+    delWith(this, 'Delete arrangement', 'Delete arrangement ' + ed.id + '? It is removed from the tracker and from the sheet at the next backup.',
+      function () { return backend.deleteArrangement(ed.row, ed.id); },
+      function () { toast('Arrangement ' + ed.id + ' deleted.'); editArr = null; idTouched = false; $('arr-form').reset(); $('a-type').value = 'Recurring'; syncTerm(); setArrMode(); go('arrangements'); });
+  });
+  $('r-delete').addEventListener('click', function () {
+    var ed = editReinv; if (!ed) return;
+    delWith(this, 'Delete reinvestment', 'Delete this reinvestment? It is removed from the tracker and from the sheet at the next backup.',
+      function () { return backend.deleteReinvestment(ed.row, { date: ed.date, amount: ed.amount }); },
+      function () { toast('Reinvestment deleted.'); editReinv = null; $('reinv-form').reset(); $('r-date').value = isoToday(); setReinvMode(); go('reinvest'); });
+  });
+
+  /* ---------- Google Sheet backup ---------- */
+  function when(s) {
+    var d = s ? new Date(s) : null; if (!d || isNaN(d)) return '';
+    var t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === new Date().toDateString() ? t : fmtDMY(d) + ' ' + t;
+  }
+  function showSync(s) {
+    if (s) sync = s;
+    if (!sync) return;
+    var dot = $('sync-dot'), t = $('sync-text'), st = sync.configured ? sync.state : 'off';
+    dot.className = 'dot ' + ({ off: 'off', pending: 'busy', error: 'err', ok: 'ok' }[st] || '');
+    t.textContent = st === 'off' ? 'Backup off' : st === 'pending' ? 'Backing up\u2026' : st === 'error' ? 'Backup failed' : st === 'ok' ? 'Backed up ' + when(sync.last) : 'Backup';
+    if (!$('conn-overlay').hidden) fillStatus();
+    if (st === 'pending') pollSync();
+  }
+  var pollTimer = null;
+  function pollSync() {
+    if (pollTimer) return;
+    pollTimer = setTimeout(function () {
+      pollTimer = null;
+      fetch('/api/status', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { showSync(j.sync); }).catch(function () {});
+    }, 2500);
+  }
+  function fillStatus() {
+    var s = sync || {}, box = $('sync-status'); box.textContent = '';
+    var msg = !s.configured ? 'Not connected yet. Follow the steps below once, and from then on every change is copied to the sheet.'
+      : s.state === 'error' ? 'The last backup failed. ' + (s.error || '')
+      : s.state === 'pending' ? 'Copying the latest changes to the sheet\u2026'
+      : s.state === 'ok' ? 'Everything is copied to the sheet. Last backup ' + when(s.last) + '.'
+      : 'Connected.';
+    box.appendChild(el('span', s.configured && s.state === 'error' ? 'flag' : '', msg));
+    if (s.notice) box.appendChild(el('span', 'flag', s.notice));
+    $('c-sync').hidden = !s.configured;
+  }
+  function openConn() {
+    var s = sync || {};
+    $('c-url').value = s.url || ''; $('c-key').value = '';
+    $('c-key').placeholder = s.configured ? 'Saved. Paste a new key only to change it.' : '';
+    $('conn-steps').open = !s.configured || !!s.notice;
+    $('rem-on').checked = !!reminders.on;
+    fillStatus(); $('conn-overlay').hidden = false;
+    (s.configured ? $('c-cancel') : $('c-url')).focus();
+  }
+  function closeConn() { $('conn-overlay').hidden = true; }
+  $('conn-btn').addEventListener('click', openConn);
+  $('c-cancel').addEventListener('click', closeConn);
+  $('conn-overlay').addEventListener('click', function (e) { if (e.target === $('conn-overlay')) closeConn(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('conn-overlay').hidden) closeConn(); });
+  $('conn-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('c-save'); btn.disabled = true; btn.textContent = 'Connecting\u2026';
+    api('saveSettings', { url: $('c-url').value.trim(), key: $('c-key').value.trim() }).then(function (r) {
+      $('c-key').value = ''; showSync(r.sync); fillStatus(); toast('Connected. Copying everything to the sheet now.');
+    }).catch(function (err) { toast(errText(err, false), true); })
+      .then(function () { btn.disabled = false; btn.textContent = 'Save and connect'; });
+  });
+  $('c-sync').addEventListener('click', function () {
+    api('syncNow').then(function (r) { showSync(r.sync); }).catch(function (err) { toast(errText(err, false), true); });
+  });
+  $('copy-script').addEventListener('click', function () {
+    fetch('apps-script.gs').then(function (r) { if (!r.ok) throw 0; return r.text(); })
+      .then(function (t) { return navigator.clipboard.writeText(t); })
+      .then(function () { toast('Script copied. Paste it into Apps Script.'); })
+      .catch(function () { toast('Copy did not work here. Use "or open it" and copy the script from that page.', true); });
+  });
+
+  /* ---------- report for the Dashboard tab of the sheet ---------- */
+  var lastReport = '';
+  function sendReport() {
+    var r = buildReport(), j = JSON.stringify(r);
+    if (!r || j === lastReport) return;
+    api('report', { report: r }).then(function (res) { lastReport = j; showSync(res.sync); }).catch(function () {});
+  }
+  function buildReport() {
+    if (!loadedOnce || !data.deals.length) return null;
+    var m = model(), rows = [], bold = [], R = Math.round;
+    function head(cells) { if (rows.length) rows.push([]); bold.push(rows.length); rows.push(cells); }
+    function pc(v) { return v == null ? 'n/a' : (v * 100).toFixed(1) + '%'; }
+    head(['Outlook', 'Amount', 'Note']);
+    rows.push(['Profit outlook', R(m.outlook), m.lastDate ? 'to ' + mlabel(mkey(m.lastDate), true) : '']);
+    rows.push(['Received', R(m.received), 'profit already paid out']);
+    rows.push(['Expected', R(m.expected), 'booked deals not yet paid, after logistics']);
+    rows.push(['Projected', R(m.projected), 'remaining cycles of recurring arrangements, after logistics']);
+    rows.push(['Logistics rate', pc(m.lgRate), 'share of profit spent on logistics in paid deals']);
+    rows.push(['Capital invested', R(m.capitalAll), 'largest single investment per arrangement']);
+    rows.push(['Expected return', pc(m.returnPct), 'outlook divided by capital']);
+    rows.push(['Reinvested', R(m.reinvested), m.received > 0 ? pct(m.reinvested, m.received) + ' of profit received' : '']);
+    head(['Arrangement', 'Customer', 'Type', 'Capital', 'Profit received', 'Profit to come', 'Total profit', 'Return', 'Per year', 'Projection']);
+    m.arrs.forEach(function (a) {
+      rows.push([a.id, a.cust, a.type, R(a.capital), R(a.received), R(a.toCome), R(a.total), a.capital > 0 ? pc(a.total / a.capital) : '', a.perYear == null ? '' : pc(a.perYear),
+        !/recurring/i.test(a.type) ? '' : a.projMode === 'none' ? 'none' : a.projMode === 'fixed' ? 'fixed ' + fmt(a.cycle || 0) : 'latest deal']);
+    });
+    bold.push(rows.length);
+    rows.push(['All arrangements', '', '', R(m.capitalAll), R(m.received), R(m.expected + m.projected), R(m.outlook), pc(m.returnPct), pc(m.perYear), '']);
+    head(['Customer', 'Phone', 'Arrangements', 'Capital', 'Profit received', 'Profit to come', 'Total profit']);
+    m.custs.forEach(function (c) { rows.push([c.name, c.phone, c.arrs.length, R(c.capital), R(c.received), R(c.toCome), R(c.total)]); });
+    head(['Month', 'Received', 'Expected', 'Projected', 'Total']);
+    monthBuckets(m).cats.forEach(function (c) { rows.push([c.key === 1e9 ? 'No date' : mlabel(c.key, true), R(c.recv), R(c.exp), R(c.proj), R(c.recv + c.exp + c.proj)]); });
+    head(['Financial year', 'Received', 'Expected', 'Projected', 'Total']);
+    fyBuckets(m).forEach(function (y) { rows.push([fyLabel(y.key), R(y.recv), R(y.exp), R(y.proj), R(y.recv + y.exp + y.proj)]); });
+    head(['Due', 'Customer', 'Return', 'Amount', 'Kind']);
+    upcoming(m).forEach(function (it) { rows.push([fmtDMY(it.due), it.cust, it.line, R(it.amount), it.kind === 'proj' ? 'Projected' : 'Booked']); });
+    return { rows: rows, bold: bold };
+  }
+
+  /* ---------- small form helpers ---------- */
+  function custName(id) { var c = data.cust.filter(function (o) { return cellVal(o, 0) === id; })[0]; return c ? cellVal(c, 1) : ''; }
+  function syncCust() { var isNew = $('a-custsel').value === '__new'; $('a-new-w').hidden = !isNew; $('a-newcust').required = isNew; }
+  function syncProj() { var fixed = $('a-proj').value === 'fixed'; $('a-cycle-w').hidden = !fixed; $('a-cycle').required = fixed; }
+  function syncDest() { var other = !$('r-destdeal').value; $('r-dest-w').hidden = !other; $('r-dest').required = other; }
+  function syncRdate() { $('f-rdate-w').hidden = !editDeal || $('d-recv').value !== 'Yes'; }
+  $('a-custsel').addEventListener('change', syncCust);
+  $('a-proj').addEventListener('change', syncProj);
+  $('r-destdeal').addEventListener('change', syncDest);
+  $('d-recv').addEventListener('change', function () { syncRdate(); if ($('d-recv').value === 'Yes' && !$('d-rdate').value) $('d-rdate').value = isoToday(); });
+
+  /* ---------- customer form (add and edit) ---------- */
+  var editCust = null;
+  function setCustMode() {
+    var ed = !!editCust;
+    $('cust-title').textContent = ed ? 'Edit ' + editCust.name : 'New customer';
+    $('cu-submit').textContent = ed ? 'Save changes' : 'Add customer';
+    $('cu-delete').hidden = !ed;
+  }
+  function startAddCust() { editCust = null; $('cust-form').reset(); setCustMode(); go('add-cust'); $('cu-name').focus(); }
+  function startEditCust(o) {
+    editCust = { row: o.row, id: cellVal(o, 0), name: cellVal(o, 1) };
+    $('cust-form').reset(); $('cu-name').value = cellVal(o, 1); $('cu-phone').value = cellVal(o, 2); $('cu-notes').value = cellVal(o, 3);
+    setCustMode(); go('add-cust');
+  }
+  $('cust-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var ed = editCust, f = { name: $('cu-name').value.trim(), phone: $('cu-phone').value.trim(), notes: $('cu-notes').value.trim() };
+    if (!f.name) { toast('Enter the customer name.', true); return; }
+    var label = ed ? 'Save changes' : 'Add customer', btn = $('cu-submit'); setBusy(btn, true, label);
+    (ed ? api('updateCustomer', ext({ row: ed.row, orig: ed.id }, f)) : api('addCustomer', f)).then(function (r) {
+      setBusy(btn, false, label); editCust = null; $('cust-form').reset(); setCustMode();
+      if (ed) { toast(f.name + ' saved.'); go('customers'); return load(); }
+      // next step: their first arrangement
+      return load().then(function () { startAddArr(r.id); toast(f.name + ' added. Now set up their first arrangement.'); });
+    }).catch(function (err) { setBusy(btn, false, label); toast(errText(err, true), true); });
+  });
+  $('cu-delete').addEventListener('click', function () {
+    var ed = editCust; if (!ed) return;
+    delWith(this, 'Delete customer', 'Delete ' + ed.name + '? They are removed from the tracker and from the sheet at the next backup.',
+      function () { return api('deleteCustomer', { row: ed.row, orig: ed.id }); },
+      function () { toast(ed.name + ' deleted.'); editCust = null; $('cust-form').reset(); setCustMode(); go('customers'); });
+  });
+
+  /* ---------- statement for one customer ---------- */
+  var stCust = null;
+  function showStatement(id, keep) {
+    stCust = id;
+    var m = model(), c = m.custs.filter(function (x) { return x.id === id; })[0], box = $('st-box');
+    box.textContent = '';
+    if (!c) { box.appendChild(el('div', 'empty', 'That customer was not found.')); if (!keep) go('statement'); return; }
+    var head = el('div', 'st-head'), l = el('div'), r = el('div', 'r');
+    l.appendChild(el('h2', '', c.name)); l.appendChild(el('p', 'note', 'Statement of investments' + (c.phone ? ' \u00b7 ' + c.phone : '')));
+    r.appendChild(el('p', 'note', 'WAGTales')); r.appendChild(el('p', 'note', 'As of ' + fmtDMY(today0())));
+    head.appendChild(l); head.appendChild(r); box.appendChild(head);
+    var agreed = 0, got = 0, open = 0, sum = el('div', 'st-sum'), body = el('div', 'st-body');
+    c.arrs.forEach(function (a) {
+      var sec = el('div');
+      sec.appendChild(el('h3', '', a.id + ' \u00b7 ' + a.type + (a.label ? ' \u00b7 ' + a.label : '')));
+      var tb = el('div', 'tablebox'), t = el('table'), th = el('thead'), hr = el('tr'), tbody = el('tbody');
+      [['Deal #', 'n'], ['Invested on', 'n'], ['Amount invested', 'n'], ['Transaction no.', ''], ['Return type', ''], ['Agreed return', 'n'], ['Due', 'n'], ['Status', ''], ['Logistics', 'n'], ['Amount received', 'n']]
+        .forEach(function (h) { hr.appendChild(el('th', h[1], h[0])); });
+      th.appendChild(hr); t.appendChild(th);
+      a.deals.forEach(function (d) {
+        var paid = d.actual != null ? d.actual : d.agreed, tr = el('tr');
+        [[String(d.n), 'n'], [d.date ? fmtDMY(d.date) : '', 'n'], [fmt(d.inv), 'n'], [d.sent ? txnText(d.txn) : 'Not sent yet', 'txn'], [d.rtype, ''], [fmt(d.agreed), 'n'], [d.due ? fmtDMY(d.due) : 'To be agreed', 'n'],
+          [d.recv ? 'Received' + (d.rdate ? ' ' + fmtDMY(d.rdate) : '') : 'Outstanding', ''], [d.recv && d.logi != null ? fmt(d.logi) : '', 'n'], [d.recv ? fmt(paid) : '', 'n']]
+          .forEach(function (v) { tr.appendChild(td(v[0], v[1])); });
+        tbody.appendChild(tr);
+        agreed += d.agreed; if (d.recv) got += paid; else open += d.agreed;
+      });
+      if (!a.deals.length) { var er = el('tr'), ec = td('No deals yet.'); ec.colSpan = 10; er.appendChild(ec); tbody.appendChild(er); }
+      t.appendChild(tbody); tb.appendChild(t); sec.appendChild(tb); body.appendChild(sec);
+    });
+    [['Arrangements', String(c.arrs.length)], ['Agreed returns', fmt(agreed)], ['Received', fmt(got)], ['Outstanding', fmt(open)]].forEach(function (x) {
+      var d = el('div'); d.appendChild(el('span', '', x[0])); d.appendChild(el('b', '', x[1])); sum.appendChild(d);
+    });
+    box.appendChild(sum); box.appendChild(body);
+    box.appendChild(el('p', 'note', 'Amounts in rupees. Amounts received are after logistics.'));
+    if (!keep) go('statement');
+  }
+  $('st-print').addEventListener('click', function () { window.print(); });
+
+  /* ---------- history ---------- */
+  function loadHistory() {
+    var box = $('hist-box');
+    if (!box.firstChild) box.appendChild(el('div', 'empty', 'Loading.'));
+    fetch('/api/history', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      var rows = (j.history || []).map(function (h) {
+        var tr = el('tr'), act = el('td', 'acts');
+        tr.appendChild(td(when(h.when), 'n')); tr.appendChild(td(h.message, 'msg'));
+        if (h.current) act.appendChild(pill('Now', 'good'));
+        else if (h.restorable) act.appendChild(actBtn('Restore to here', function () { restoreTo(h, this); }));
+        tr.appendChild(act);
+        return tr;
+      });
+      table(box, [{ t: 'When', num: 1 }, { t: 'Change' }, { t: '' }], rows, 'No changes recorded yet.');
+    }).catch(function () { box.textContent = ''; box.appendChild(el('div', 'empty', errText({ code: 'network' }, false))); });
+  }
+  function restoreTo(h, btn) {
+    if (busy || !window.confirm('Put everything back as it was after \u201c' + h.message + '\u201d (' + when(h.when) + ')? The restore is saved as a change, so it can be undone.')) return;
+    busy = true; btn.disabled = true;
+    api('restore', { hash: h.hash }).then(function () {
+      busy = false; toast('Restored. It is saved in the history, so it can be undone.');
+      return load().then(loadHistory);
+    }).catch(function (err) { busy = false; btn.disabled = false; toast(errText(err, true), true); });
+  }
+
+  /* ---------- Mac reminders ---------- */
+  $('rem-on').addEventListener('change', function () {
+    var on = this.checked;
+    api('setReminders', { on: on }).then(function (r) {
+      reminders = r.reminders; renderOverview();
+      toast(on ? 'Mac reminders are on.' : 'Mac reminders are off.');
+    }).catch(function (err) { $('rem-on').checked = !on; toast(errText(err, true), true); });
+  });
+
+  renderAll();
+  load();
+})();
+</script>
+</body>
+</html>
